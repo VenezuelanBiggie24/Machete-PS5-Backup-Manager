@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "Drag and drop here to copy",
+  "machetear": "MACHETEAR (حذف)",
+  "about": "عن Machete",
+  "free_space": "مساحة حرة",
+  "used_space": "مستخدم",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "حدد المجلد",
+  "current_dir": "المجلد الحالي:",
+  "about_desc": "تم التطوير بواسطة VenezuelanBiggie24، مطور فنزويلي فخور. على الرغم من أن حقائق الشيوعية أجبرتني على مغادرة وطني، إلا أن تلك المحنة تحولت إلى مرونة، مما أتاح لي اليوم كتابة التعليمات البرمجية وإنشاء حلول بلا حدود من أي مكان في العالم.",
+  "app_subtitle": "مدير PS5 العالمي",
+  "author_label": "المؤلف",
+  "version_label": "الإصدار",
+  "scanning_dir": "جاري مسح الدليل...",
+  "delete_confirm_title": "تأكيد الحذف",
+  "delete_confirm_msg": "هل أنت متأكد أنك تريد حذف هذا العنوان نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.",
+  "ssd_warning": "قد يستغرق تحميل الملفات الضخمة بضع لحظات على الأقراص الكبيرة...",
+  "cover_dimensions_warning": "للحصول على عرض مثالي، يرجى استخدام صورة عمودية (نسبة 3:4).",
+  "edit_title": "إعادة تسمية العنوان",
+  "change_cover": "تغيير الغلاف",
+  "rename_prompt": "أدخل عنوانًا جديدًا لهذه اللعبة:",
+  "changelog_title": "Changelog",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ]
+}

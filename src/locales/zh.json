@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "拖放到此处进行复制",
+  "machetear": "MACHETEAR (删除)",
+  "about": "关于 Machete",
+  "free_space": "可用空间",
+  "used_space": "已用",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "选择目录",
+  "current_dir": "当前目录:",
+  "about_desc": "由 VenezuelanBiggie24 开发，一位自豪的委内瑞拉开发者。尽管共产主义的现实迫使我离开家乡，但那种逆境转化为韧性，使我今天能够在世界任何角落编写代码并创造无国界的解决方案。",
+  "app_subtitle": "通用 PS5 管理器",
+  "author_label": "作者",
+  "version_label": "版本",
+  "scanning_dir": "正在扫描目录...",
+  "delete_confirm_title": "确认删除",
+  "delete_confirm_msg": "您确定要永久删除此游戏吗？此操作无法撤销。",
+  "ssd_warning": "在大容量驱动器上加载海量文件可能需要一些时间...",
+  "cover_dimensions_warning": "为了获得最佳显示效果，请使用纵向（3:4比例）的图像。",
+  "edit_title": "重命名",
+  "change_cover": "更改封面",
+  "rename_prompt": "输入此游戏的新名称：",
+  "changelog_title": "Changelog",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ]
+}
