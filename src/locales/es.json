@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "Arrastra y suelta aquí para copiar",
+  "machetear": "MACHETEAR (Eliminar)",
+  "about": "Acerca de Machete",
+  "free_space": "Espacio Libre",
+  "used_space": "Usado",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "Seleccionar Directorio",
+  "current_dir": "Directorio Actual:",
+  "about_desc": "Desarrollado por VenezuelanBiggie24, un orgulloso desarrollador venezolano. Aunque las realidades del comunismo me obligaron a dejar mi hogar, esa adversidad se transformó en resiliencia, permitiéndome hoy escribir código y crear soluciones sin fronteras desde cualquier rincón del mundo.",
+  "app_subtitle": "Universal PS5 Manager",
+  "author_label": "Author",
+  "version_label": "Version",
+  "scanning_dir": "SCANNING DIRECTORY...",
+  "delete_confirm_title": "Confirmar Eliminación",
+  "delete_confirm_msg": "¿Estás seguro de que deseas eliminar este título permanentemente? Esta acción no se puede deshacer.",
+  "ssd_warning": "Cargar archivos masivos puede tardar unos momentos en discos de gran capacidad...",
+  "cover_dimensions_warning": "Para una visualización óptima, usa una imagen en formato vertical (relación de aspecto 3:4) tipo póster.",
+  "edit_title": "Renombrar Título",
+  "change_cover": "Cambiar Carátula",
+  "rename_prompt": "Introduce el nuevo título para este juego:",
+  "changelog_title": "Historial de Cambios (Changelog)",
+  "changelog_v110_title": "v1.1.0 - (Actual)",
+  "changelog_v110_items": [
+    "Soporte de carátulas y títulos personalizados (base de datos local).",
+    "Mayor tamaño de ventana por defecto para visualizar toda la UI.",
+    "Aviso incorporado sobre tiempos de carga en discos SSD grandes.",
+    "Traducción total del changelog y ventanas de diálogo."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Lanzamiento)",
+  "changelog_v100_items": [
+    "Renombre oficial a Machete PS5 Backup Manager.",
+    "Búsqueda cruzada de carátulas para IDs sin registro.",
+    "Reubicación de etiqueta PPSA a la zona inferior derecha.",
+    "Anonimato estricto para peticiones a la API."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporación de sistema de prevención de borrado (Native Dialog).",
+    "Reestructuración de la UI al estilo Cyberpunk y modo oscuro.",
+    "Soporte nativo para 11 idiomas con cambio dinámico."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Inicial)",
+  "changelog_v010_items": [
+    "Prueba de concepto. Lectura asíncrona de archivos.",
+    "Conexión inicial básica con API SerialStation.",
+    "Cálculo de espacio de disco disponible."
+  ]
+}

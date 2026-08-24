@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "Glissez et déposez ici pour copier",
+  "machetear": "MACHETEAR (Supprimer)",
+  "about": "À propos de Machete",
+  "free_space": "Espace Libre",
+  "used_space": "Utilisé",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "Sélectionner un Répertoire",
+  "current_dir": "Répertoire Courant:",
+  "about_desc": "Développé par VenezuelanBiggie24, un fier développeur vénézuélien. Bien que les réalités du communisme m'aient forcé à quitter ma patrie, cette adversité s'est transformée en résilience, me permettant aujourd'hui d'écrire du code et de créer des solutions sans frontières depuis n'importe quel coin du monde.",
+  "app_subtitle": "Gestionnaire de Sauvegarde Universel PS5",
+  "author_label": "Auteur",
+  "version_label": "Version",
+  "scanning_dir": "ANALYSE DU RÉPERTOIRE...",
+  "delete_confirm_title": "Confirmer la suppression",
+  "delete_confirm_msg": "Êtes-vous sûr de vouloir supprimer définitivement ce titre ? Cette action est irréversible.",
+  "ssd_warning": "Le chargement de fichiers massifs peut prendre quelques instants sur de grands disques...",
+  "cover_dimensions_warning": "Pour un affichage optimal, veuillez utiliser une image au format portrait (ratio 3:4).",
+  "edit_title": "Renommer le titre",
+  "change_cover": "Changer la pochette",
+  "rename_prompt": "Entrez le nouveau titre pour ce jeu :",
+  "changelog_title": "Changelog",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "Drag and drop here to copy",
+  "machetear": "MACHETEAR (Delete)",
+  "about": "About Machete",
+  "free_space": "Free Space",
+  "used_space": "Used",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "Select Directory",
+  "current_dir": "Current Directory:",
+  "about_desc": "Developed by VenezuelanBiggie24, a proud Venezuelan developer. Although the realities of communism forced me to leave my home, that adversity turned into resilience, allowing me today to write code and create borderless solutions from anywhere in the world.",
+  "app_subtitle": "Universal PS5 Manager",
+  "author_label": "Author",
+  "version_label": "Version",
+  "scanning_dir": "SCANNING DIRECTORY...",
+  "delete_confirm_title": "Confirm Deletion",
+  "delete_confirm_msg": "Are you sure you want to permanently delete this title? This action cannot be undone.",
+  "ssd_warning": "Loading massive files might take a few moments on large drives...",
+  "cover_dimensions_warning": "For optimal display, please use a portrait-oriented image (3:4 aspect ratio) like a standard game cover.",
+  "edit_title": "Rename Title",
+  "change_cover": "Change Cover",
+  "rename_prompt": "Enter new title for this game:",
+  "changelog_title": "Changelog",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ]
+}

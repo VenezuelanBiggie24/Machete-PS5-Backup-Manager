@@ -1,0 +1,50 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "여기로 드래그 앤 드롭하여 복사",
+  "machetear": "MACHETEAR (삭제)",
+  "about": "Machete 정보",
+  "free_space": "여유 공간",
+  "used_space": "사용됨",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "디렉토리 선택",
+  "current_dir": "현재 디렉토리:",
+  "about_desc": "자랑스러운 베네수엘라 개발자인 VenezuelanBiggie24가 개발했습니다. 공산주의의 현실 때문에 고향을 떠나야 했지만, 그 역경은 회복력으로 바뀌어 오늘날 전 세계 어디에서나 국경 없는 솔루션을 코딩하고 만들 수 있게 되었습니다.",
+  "app_subtitle": "유니버설 PS5 매니저",
+  "author_label": "저자",
+  "version_label": "버전",
+  "scanning_dir": "디렉토리 스캔 중...",
+  "delete_confirm_title": "삭제 확인",
+  "delete_confirm_msg": "이 타이틀을 영구적으로 삭제하시겠습니까? 이 작업은 실행 취소할 수 없습니다.",
+  "ssd_warning": "대용량 드라이브에서 대규모 파일을 로드하는 데 몇 분이 걸릴 수 있습니다...",
+  "cover_dimensions_warning": "최적의 디스플레이를 위해 세로 방향(3:4 비율) 이미지를 사용하십시오.",
+  "edit_title": "제목 이름 바꾸기",
+  "change_cover": "표지 변경",
+  "rename_prompt": "이 게임의 새 제목 입력:",
+  "changelog_title": "Changelog",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
+  ],
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ]
+}
