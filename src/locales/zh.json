@@ -47,5 +47,6 @@
     "Basic initial connection with SerialStation API.",
     "Disk space calculation."
   ],
-  "license_info": "在 GPLv3 许可证下分发"
+  "license_info": "在 GPLv3 许可证下分发",
+  "repository_label": "官方仓库"
 }
