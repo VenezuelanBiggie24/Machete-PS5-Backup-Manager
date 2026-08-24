@@ -47,5 +47,6 @@
     "Conexión inicial básica con API SerialStation.",
     "Cálculo de espacio de disco disponible."
   ],
-  "license_info": "Distribuido bajo la Licencia GPLv3"
+  "license_info": "Distribuido bajo la Licencia GPLv3",
+  "repository_label": "Repositorio Oficial"
 }
