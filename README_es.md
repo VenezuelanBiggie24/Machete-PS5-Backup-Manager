@@ -1,39 +1,120 @@
-# Machete PS5 Backup Manager
+<div align="center">
 
-![Machete Hero Image](https://via.placeholder.com/800x400/000000/00ffcc?text=Machete+PS5+Backup+Manager)
+# 🔪 Machete PS5 Backup Manager
 
-> Tu biblioteca de copias de seguridad de PS5, reinventada con estilo cyberpunk.
+**Deja de apostar con tus respaldos. Empieza a verlos.**
 
-Machete es una aplicación de escritorio para macOS y Windows diseñada para gestionar tus backups de PS5 sin complicaciones. Despídete de los directorios caóticos llenos de archivos `.pkg` crípticos y carpetas desorganizadas. Machete escanea automáticamente tus discos externos, lee los IDs PPSA y obtiene las portadas y metadatos oficiales directamente desde SerialStation para mostrar tu colección de forma visual y atractiva.
+[![License: GPL v3](https://img.shields.io/badge/Licencia-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/Plataforma-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen)]()
+[![Built with Tauri](https://img.shields.io/badge/Construido%20con-Tauri%20%2B%20Rust-orange)]()
 
-## ⚡ Características
+</div>
 
-* **Interfaz Cyberpunk Nativa**: Construido con una estética cyberpunk elegante con toques de neón que se siente natural tanto en macOS (interfaz nativa) como en Windows.
-* **Búsqueda Inteligente Multi-Región**: Machete identifica al instante tus backups (ya sean archivos `.pkg` sueltos o carpetas extraídas) y descarga portadas de alta calidad y nombres oficiales usando los metadatos de SerialStation.
-* **100% Privado y Seguro**: Tu colección es asunto tuyo. Todas las solicitudes de metadatos son completamente anónimas. Sin rastreo, sin telemetría, sin tonterías.
-* **Gestión de Archivos Completa**: Mantén tu disco limpio sin esfuerzo. Renombra o elimina archivos y carpetas directamente desde la interfaz de Machete.
-* **Acceso Global (11 Idiomas)**: Completamente localizado en 11 idiomas desde el primer día, porque tu biblioteca de juegos no debería estar limitada por fronteras.
+---
+
+## El Problema
+
+Tienes un disco externo de 2TB lleno de respaldos de PS5. Decenas de archivos `.exFAT`, `.ffpfsc` y carpetas — todos con nombres crípticos como `PPSA04264` o `PPSA29343.exfat`. ¿Cuál es el GTA V? ¿Cuál es el Ghost of Tsushima? No tienes ni idea. Y cuando necesitas liberar espacio, estás a un clic de borrar 96GB del juego equivocado. **Para siempre.**
+
+Ese caos termina hoy.
+
+## La Solución
+
+**Machete** escanea tu directorio de respaldos, lee el PPSA ID de cada archivo y carpeta, y al instante obtiene el **nombre oficial del juego y la carátula en alta calidad** desde la base de datos de SerialStation. En segundos, tu desastre ilegible se convierte en una galería visual impresionante donde puedes identificar cada respaldo de un vistazo.
+
+Sin más adivinanzas. Sin más accidentes. Sin más desastres.
+
+<div align="center">
+
+*Capturas de pantalla — próximamente*
+
+</div>
+
+---
+
+## ✨ Características
+
+### 🔍 Reconocimiento Inteligente
+Machete detecta automáticamente archivos `.exFAT`, `.ffpfsc` y carpetas que contienen respaldos de PS5. Extrae el Title ID (PPSA) y lo resuelve al nombre real del juego y su región — sin intervención manual.
+
+### 🎨 Carátulas Instantáneas
+Cada juego reconocido obtiene su arte de caja oficial directamente de SerialStation. Tu disco de respaldos pasa de ser un muro de texto a una biblioteca visual en segundos. El sistema de búsqueda cross-región garantiza la máxima cobertura.
+
+### 🛡️ Cero Riesgo para tus Archivos
+Machete **jamás** renombra, mueve ni modifica tus archivos originales. Todos los títulos personalizados y las carátulas custom se almacenan en una base de datos local en tu sistema. Tus respaldos se quedan exactamente como están.
+
+### ✏️ Edición Manual
+¿Un juego no fue reconocido? Sin problema. Pasa el mouse por encima de cualquier entrada para editar manualmente el título o asignar una carátula personalizada — todo almacenado localmente, todo reversible.
+
+### 🗑️ Eliminación Segura
+Cuando necesites liberar espacio, la función de eliminación de Machete muestra una advertencia clara y localizada antes de borrar permanentemente cualquier archivo o carpeta. Sin eliminaciones silenciosas, sin sorpresas.
+
+### 🌍 11 Idiomas
+Inglés, Español (Venezuela), Francés, Alemán, Italiano, Portugués (BR y PT), Ruso, Japonés, Chino, Coreano y Árabe. Cada etiqueta, cada advertencia, cada entrada del changelog — completamente traducido.
+
+### 🕵️ Privacidad Ante Todo
+Todas las solicitudes a la API están completamente anonimizadas. Sin headers de rastreo, sin user-agents identificables, sin cookies. Machete no deja rastro de tu actividad en ningún servidor externo.
+
+### ⚡ Velocidad Brutal
+Construido con **Tauri + Rust** en el backend y **React + TypeScript** en el frontend. Rendimiento nativo en cada plataforma, con una fracción del consumo de memoria de las alternativas basadas en Electron.
+
+---
 
 ## 🚀 Instalación
 
-### macOS
-1. Descarga la última versión `.dmg` desde la página de [Releases](https://github.com/tu-usuario/machete/releases).
-2. Abre el archivo y arrastra **Machete** a tu carpeta de Aplicaciones.
-3. Inicia la aplicación y concede los permisos necesarios para leer discos externos.
+### Descarga
+Ve a la página de [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager/releases) y descarga el instalador para tu plataforma:
 
-### Windows
-1. Descarga el último instalador `.exe` desde la página de [Releases](https://github.com/tu-usuario/machete/releases).
-2. Ejecuta el instalador y sigue las instrucciones en pantalla.
-3. Conecta tu disco duro y empieza a organizar.
+| Plataforma | Formato |
+|------------|---------|
+| macOS | `.dmg` / `.app` |
+| Windows | `.msi` / `.exe` |
+| Linux | `.AppImage` / `.deb` |
 
-## 🕹️ Uso
+### Compilar desde el Código Fuente
+```bash
+git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git
+cd Machete-PS5-Backup-Manager
+npm install
+npm run tauri build
+```
 
-1. **Conecta tu disco**: Conecta el HDD o SSD externo que contiene tus backups de PS5.
-2. **Escanear**: Haz clic en el botón "Escanear" en Machete. La app analizará automáticamente tus archivos `.pkg` y carpetas en busca de IDs PPSA.
-3. **Organizar**: Observa cómo tus archivos en crudo se transforman en una biblioteca visual. Ahora puedes renombrar archivos a formatos estándar o eliminar duplicados de forma segura directamente desde la aplicación.
+**Requisitos:** Node.js 18+, Rust 1.70+
 
-## 🌍 Idiomas Soportados
-Inglés, Español, Francés, Alemán, Italiano, Portugués, Ruso, Japonés, Coreano, Chino Simplificado y Chino Tradicional.
+---
 
-## 📄 Licencia
-Este proyecto está bajo la Licencia MIT - consulta el archivo [LICENSE](LICENSE) para más detalles.
+## 🛠️ Stack Tecnológico
+
+| Capa | Tecnología |
+|------|-----------|
+| Backend | Rust (Tauri v2) |
+| Frontend | React 18 + TypeScript |
+| Estilos | Tailwind CSS |
+| Animaciones | Framer Motion |
+| API | SerialStation (anonimizada) |
+| i18n | i18next (11 idiomas) |
+| BD Local | Archivo JSON en AppData del sistema |
+
+---
+
+## 📜 Licencia
+
+Este proyecto está licenciado bajo la **GNU General Public License v3.0** — consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+Eres libre de usar, modificar y redistribuir este software. Cualquier trabajo derivado también debe ser publicado bajo GPLv3. Este código permanecerá libre y de código abierto, para siempre.
+
+---
+
+## 👤 Autor
+
+**VenezuelanBiggie24**
+
+Un orgulloso desarrollador venezolano. Aunque las realidades del comunismo me obligaron a dejar mi hogar, esa adversidad se transformó en resiliencia, permitiéndome hoy escribir código y crear soluciones sin fronteras desde cualquier rincón del mundo.
+
+---
+
+<div align="center">
+
+⭐ **Si Machete te salvó de un desastre con tus respaldos, considera dejar una estrella** ⭐
+
+</div>
