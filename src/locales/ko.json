@@ -46,5 +46,6 @@
     "Proof of concept. Asynchronous file reading.",
     "Basic initial connection with SerialStation API.",
     "Disk space calculation."
-  ]
+  ],
+  "license_info": "GPLv3 라이선스에 따라 배포됨"
 }

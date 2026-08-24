@@ -467,6 +467,7 @@ export default function App() {
                 <div>
                   <div className="text-xs text-slate-400">{t("version_label")}</div>
                   <div className="font-semibold text-white">1.1.0</div>
+                  <div className="text-[10px] text-cyan-500/80 mt-1">{t("license_info")}</div>
                 </div>
               </div>
             </div>
