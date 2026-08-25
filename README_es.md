@@ -71,6 +71,14 @@ Ve a la página de [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-
 | Windows | `.msi` / `.exe` |
 | Linux | `.AppImage` / `.deb` |
 
+> [!WARNING]  
+> **Usuarios de macOS:** Si al abrir la app recibes un error diciendo que *"está dañada y debe trasladarse a la papelera"*, es una medida de seguridad estándar de Apple para apps de código abierto. 
+> Para solucionarlo, arrastra la app a tu carpeta de **Aplicaciones**, abre la **Terminal** y ejecuta este comando:
+> ```bash
+> xattr -cr "/Applications/Machete PS5 Backup Manager.app"
+> ```
+
+
 ### Compilar desde el Código Fuente
 ```bash
 git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git

@@ -71,6 +71,14 @@ Head to the [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-
 | Windows | `.msi` / `.exe` |
 | Linux | `.AppImage` / `.deb` |
 
+> [!WARNING]  
+> **macOS Users:** If you receive an error saying the app is *"damaged and can't be opened"*, this is a standard macOS security feature for open-source apps. 
+> To fix it, drag the app to your **Applications** folder, open your **Terminal**, and run this command:
+> ```bash
+> xattr -cr "/Applications/Machete PS5 Backup Manager.app"
+> ```
+
+
 ### Build from Source
 ```bash
 git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git
