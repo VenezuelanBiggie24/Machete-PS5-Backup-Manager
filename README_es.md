@@ -14,13 +14,13 @@
 
 ## El Problema
 
-Tienes un disco externo de 2TB lleno de respaldos de PS5. Decenas de archivos `.exFAT`, `.ffpfsc` y carpetas — todos con nombres crípticos como `PPSA04264` o `PPSA29343.exfat`. ¿Cuál es el GTA V? ¿Cuál es el Ghost of Tsushima? No tienes ni idea. Y cuando necesitas liberar espacio, estás a un clic de borrar 96GB del juego equivocado. **Para siempre.**
+Tienes un disco externo de 2TB lleno de respaldos de PS5. Decenas de archivos `.exFAT`, `.ffpfsc` y carpetas — todos con nombres crípticos como `PPSA04264` o `PPSA29343.exfat`. ¿Cuál es ese inmenso RPG de mundo abierto? ¿Cuál es tu simulador de carreras favorito? No tienes ni idea. Y cuando necesitas liberar espacio, estás a un clic de borrar 96GB del juego equivocado. **Para siempre.**
 
 Ese caos termina hoy.
 
 ## La Solución
 
-**Machete** escanea tu directorio de respaldos, lee el PPSA ID de cada archivo y carpeta, y al instante obtiene el **nombre oficial del juego y la carátula en alta calidad** desde la base de datos de SerialStation. En segundos, tu desastre ilegible se convierte en una galería visual impresionante donde puedes identificar cada respaldo de un vistazo.
+**Machete PS5 Backup Manager** escanea tu directorio de respaldos, lee el PPSA ID de cada archivo y carpeta, y al instante obtiene el **nombre oficial del juego y la carátula en alta calidad** desde la base de datos de SerialStation. En segundos, tu desastre ilegible se convierte en una galería visual impresionante donde puedes identificar cada respaldo de un vistazo.
 
 Sin más adivinanzas. Sin más accidentes. Sin más desastres.
 

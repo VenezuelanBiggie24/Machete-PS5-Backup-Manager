@@ -14,13 +14,13 @@
 
 ## The Problem
 
-You have a 2TB external drive full of PS5 backups. Dozens of `.exFAT` files, `.ffpfsc` files, and folders — all named with cryptic codes like `PPSA04264` or `PPSA29343.exfat`. Which one is GTA V? Which one is Ghost of Tsushima? You have no idea. And when you need to free up space, you're one wrong click away from deleting 96GB of the wrong game. **Forever.**
+You have a 2TB external drive full of PS5 backups. Dozens of `.exFAT` files, `.ffpfsc` files, and folders — all named with cryptic codes like `PPSA04264` or `PPSA29343.exfat`. Which one is that massive open-world RPG? Which one is your favorite racing simulator? You have no idea. And when you need to free up space, you're one wrong click away from deleting 96GB of the wrong game. **Forever.**
 
 That chaos ends today.
 
 ## The Solution
 
-**Machete** scans your backup directory, reads the PPSA ID from every file and folder name, and instantly fetches the **official game title and high-quality cover art** from the SerialStation database. In seconds, your unreadable mess becomes a stunning visual gallery where you can identify every single backup at a glance.
+**Machete PS5 Backup Manager** scans your backup directory, reads the PPSA ID from every file and folder name, and instantly fetches the **official game title and high-quality cover art** from the SerialStation database. In seconds, your unreadable mess becomes a stunning visual gallery where you can identify every single backup at a glance.
 
 No more guessing. No more accidents. No more disasters.
 
