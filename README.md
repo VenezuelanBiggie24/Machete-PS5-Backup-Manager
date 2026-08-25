@@ -26,7 +26,7 @@ No more guessing. No more accidents. No more disasters.
 
 <div align="center">
 
-*Screenshot placeholder — coming soon*
+![Machete PS5 Backup Manager Screenshot](public/screenshot.png)
 
 </div>
 
