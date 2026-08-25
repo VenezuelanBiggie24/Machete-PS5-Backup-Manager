@@ -26,7 +26,7 @@ Sin más adivinanzas. Sin más accidentes. Sin más desastres.
 
 <div align="center">
 
-*Capturas de pantalla — próximamente*
+![Captura de pantalla de Machete PS5 Backup Manager](public/screenshot.png)
 
 </div>
 
