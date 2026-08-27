@@ -1,3 +1,4 @@
+mod transfer;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -383,66 +384,10 @@ struct TransferProgress {
 }
 
 #[tauri::command]
-async fn transfer_items(
-    app_handle: tauri::AppHandle,
-    sources: Vec<String>, 
-    target_dir: String
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        use tauri::Emitter;
-        use std::time::Instant;
-        
-        let mut options = fs_extra::dir::CopyOptions::new();
-        options.copy_inside = true;
-        
-        let mut last_emit = Instant::now();
-        let mut last_copied_bytes = 0u64;
-        let mut last_time = Instant::now();
-        
-        let handler = |process_info: fs_extra::TransitProcess| {
-            let now = Instant::now();
-            // Emit progress every 100ms
-            if now.duration_since(last_emit).as_millis() > 100 {
-                let percent = if process_info.total_bytes > 0 {
-                    (process_info.copied_bytes as f64 / process_info.total_bytes as f64) * 100.0
-                } else {
-                    0.0
-                };
-                
-                let elapsed_since_last = now.duration_since(last_time).as_secs_f64();
-                let bytes_since_last = process_info.copied_bytes.saturating_sub(last_copied_bytes) as f64;
-                let speed = if elapsed_since_last > 0.0 {
-                    bytes_since_last / elapsed_since_last
-                } else {
-                    0.0
-                };
-                last_copied_bytes = process_info.copied_bytes;
-                last_time = now;
-                
-                let remaining_bytes = process_info.total_bytes.saturating_sub(process_info.copied_bytes) as f64;
-                let eta = if speed > 0.0 {
-                    remaining_bytes / speed
-                } else {
-                    0.0
-                };
-                
-                let _ = app_handle.emit("transfer-progress", TransferProgress {
-                    percent,
-                    current_file: process_info.file_name.clone(),
-                    speed_bytes_per_sec: speed,
-                    eta_seconds: eta,
-                });
-                
-                last_emit = now;
-            }
-            fs_extra::dir::TransitProcessResult::ContinueOrAbort
-        };
-
-        fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler)
-            .map_err(|e| e.to_string())
-    }).await.map_err(|e| e.to_string())??;
-    
-    Ok(())
+async fn transfer_items(app_handle: tauri::AppHandle, sources: Vec<String>, target_dir: String) -> Result<(), String> {
+    use tauri::Manager;
+    let window = app_handle.get_webview_window("main").unwrap();
+    transfer::async_transfer(sources, target_dir, window).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
