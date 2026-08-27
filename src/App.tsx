@@ -57,6 +57,38 @@ export default function App() {
   const [renameData, setRenameData] = useState<{ppsa: string, title: string} | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
+  const startTransfer = async (payload: string[]) => {
+    if (!currentDirRef.current) return;
+    setTransferProgress({ percent: 0, current_file: "Starting...", speed_bytes_per_sec: 0, eta_seconds: 0 });
+    try {
+      await invoke('transfer_items', {
+        sources: payload,
+        targetDir: currentDirRef.current
+      });
+      setTransferProgress(null);
+      loadDirectory(currentDirRef.current);
+    } catch (e) {
+      console.error(e);
+      message("Error transfering files: " + String(e), { title: "Error", kind: 'error' });
+      setTransferProgress(null);
+    }
+  };
+
+  const handleDropzoneClick = async () => {
+    try {
+      const selected = await open({
+        multiple: true,
+      });
+      if (selected && Array.isArray(selected) && selected.length > 0) {
+        startTransfer(selected);
+      } else if (selected && typeof selected === 'string') {
+        startTransfer([selected]);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleSelectDirectory = async () => {
     try {
       const selected = await open({
@@ -123,19 +155,7 @@ export default function App() {
       const payload = event.payload as string[];
       if (payload && payload.length > 0) {
         if (currentDirRef.current) {
-          setTransferProgress({ percent: 0, current_file: "Starting...", speed_bytes_per_sec: 0, eta_seconds: 0 });
-          try {
-            await invoke('transfer_items', {
-              sources: payload,
-              targetDir: currentDirRef.current
-            });
-            setTransferProgress(null);
-            loadDirectory(currentDirRef.current);
-          } catch (e) {
-            console.error(e);
-            message("Error transfering files: " + String(e), { title: "Error", kind: 'error' });
-            setTransferProgress(null);
-          }
+          startTransfer(payload);
         } else {
           const firstPath = payload[0];
           setCurrentDir(firstPath);
@@ -467,9 +487,10 @@ export default function App() {
 
       {/* Drop Zone */}
       {currentDir && (
-        <div className="mt-8 border-2 border-dashed border-cyan-500/50 rounded-xl p-12 flex flex-col items-center justify-center text-cyan-400/70 hover:bg-cyan-500/5 hover:border-cyan-400 transition-all cursor-pointer neon-border">
+        <div onClick={handleDropzoneClick} className="mt-8 border-2 border-dashed border-cyan-500/50 rounded-xl p-12 flex flex-col items-center justify-center text-cyan-400/70 hover:bg-cyan-500/5 hover:border-cyan-400 transition-all cursor-pointer neon-border">
           <DownloadCloud className="w-16 h-16 mb-4" />
           <span className="text-xl font-bold">{t("drag_drop")}</span>
+          <span className="text-sm mt-2 text-cyan-500/60 font-mono">...or click here to open Finder</span>
         </div>
       )}
 

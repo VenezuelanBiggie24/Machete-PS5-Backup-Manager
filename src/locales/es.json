@@ -51,7 +51,7 @@
   "repository_label": "Repositorio Oficial",
   "changelog_v120_title": "v1.2.0 - Transferencias Cyberpunk",
   "changelog_v120_items": [
-    "Añadida función drag & drop para transferir respaldos al disco.",
+    "Añadida función drag & drop (y click) para transferir archivos y carpetas al disco.",
     "Nueva interfaz Cyberpunk de progreso en tiempo real (Velocidad y ETA).",
     "Arreglados los márgenes de la cuadrícula para el difuminado perfecto de carátulas."
   ]
