@@ -12,6 +12,7 @@ struct FileItem {
     path: String,
     ppsa: Option<String>,
     size_bytes: u64,
+    is_dir: bool,
 }
 
 #[derive(Serialize)]
@@ -260,6 +261,30 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
     result.map_err(|e| e.to_string())?
 }
 
+
+fn calculate_dir_size(path: &std::path::Path) -> u64 {
+    let mut size = 0;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_dir() {
+                    size += calculate_dir_size(&entry.path());
+                } else {
+                    size += metadata.len();
+                }
+            }
+        }
+    }
+    size
+}
+
+#[tauri::command]
+async fn get_folder_size(path: String) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        calculate_dir_size(std::path::Path::new(&path))
+    }).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -294,6 +319,7 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                         path: path_buf.to_string_lossy().to_string(),
                         ppsa,
                         size_bytes,
+                        is_dir: path_buf.is_dir(),
                     });
                 }
             }
@@ -428,7 +454,8 @@ pub fn run() {
             fetch_metadata_rs,
             save_custom_title,
             save_custom_cover,
-            read_directory, 
+            read_directory,
+            get_folder_size, 
             get_disk_space, 
             delete_file, 
             transfer_items
