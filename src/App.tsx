@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, HardDrive, Trash2, Settings, Globe, Info, DownloadCloud, RefreshCw, Edit2, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { FolderSearch, HardDrive, Trash2, Settings, Globe, Info, DownloadCloud, RefreshCw, Edit2, Image as ImageIcon, ExternalLink, Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import i18n from './i18n';
@@ -38,6 +38,15 @@ function formatBytes(bytes: number, decimals = 2) {
 export default function App() {
   const { t } = useTranslation();
   const [currentDir, setCurrentDir] = useState<string | null>(null);
+  const currentDirRef = useRef<string | null>(null);
+  
+  const [transferProgress, setTransferProgress] = useState<{
+    percent: number;
+    current_file: string;
+    speed_bytes_per_sec: number;
+    eta_seconds: number;
+  } | null>(null);
+
   const [files, setFiles] = useState<FileItem[]>([]);
   const [metadata, setMetadata] = useState<Record<string, MetadataInfo>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -105,18 +114,43 @@ export default function App() {
     }
   };
 
+
   useEffect(() => {
-    const unlisten = listen('tauri://file-drop', (event) => {
+    currentDirRef.current = currentDir;
+  }, [currentDir]);
+  useEffect(() => {
+    const unlistenDrop = listen('tauri://file-drop', async (event) => {
       const payload = event.payload as string[];
       if (payload && payload.length > 0) {
-        const firstPath = payload[0];
-        setCurrentDir(firstPath);
-        loadDirectory(firstPath);
+        if (currentDirRef.current) {
+          setTransferProgress({ percent: 0, current_file: "Starting...", speed_bytes_per_sec: 0, eta_seconds: 0 });
+          try {
+            await invoke('transfer_items', {
+              sources: payload,
+              targetDir: currentDirRef.current
+            });
+            setTransferProgress(null);
+            loadDirectory(currentDirRef.current);
+          } catch (e) {
+            console.error(e);
+            message("Error transfering files: " + String(e), { title: "Error", kind: 'error' });
+            setTransferProgress(null);
+          }
+        } else {
+          const firstPath = payload[0];
+          setCurrentDir(firstPath);
+          loadDirectory(firstPath);
+        }
       }
     });
 
+    const unlistenProgress = listen('transfer-progress', (event) => {
+      setTransferProgress(event.payload as any);
+    });
+
     return () => {
-      unlisten.then(f => f());
+      unlistenDrop.then(f => f());
+      unlistenProgress.then(f => f());
     };
   }, []);
 
@@ -383,6 +417,51 @@ export default function App() {
             })}
           </AnimatePresence>
         </div>
+        </div>
+      )}
+
+            {/* Transfer Progress Cyberpunk UI */}
+      {transferProgress && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-panel p-8 rounded-2xl max-w-lg w-full border border-cyan-500 shadow-[0_0_40px_rgba(0,240,255,0.3)] relative overflow-hidden"
+          >
+            {/* Background Cyberpunk effect */}
+            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#00f0ff 1px, transparent 1px), linear-gradient(90deg, #00f0ff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+            
+            <div className="flex items-center gap-4 mb-6 relative z-10">
+              <Activity className="w-10 h-10 text-cyan-400 animate-pulse" />
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white uppercase tracking-widest text-shadow-neon">Transferring Data</h2>
+                <div className="text-xs font-mono text-cyan-400 truncate max-w-xs">{transferProgress.current_file}</div>
+              </div>
+              <div className="text-2xl font-bold font-mono text-cyan-300">
+                {Math.round(transferProgress.percent)}%
+              </div>
+            </div>
+
+            <div className="relative w-full h-4 bg-slate-900 rounded-full overflow-hidden border border-slate-700 mb-6 z-10 shadow-inner">
+              <motion.div 
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-600 to-cyan-300 shadow-[0_0_15px_#00f0ff]"
+                initial={{ width: 0 }}
+                animate={{ width: `${transferProgress.percent}%` }}
+                transition={{ ease: "linear", duration: 0.1 }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-xs font-mono text-slate-400 relative z-10">
+              <div className="flex flex-col">
+                <span className="text-slate-500 uppercase">Speed</span>
+                <span className="text-cyan-300">{formatBytes(transferProgress.speed_bytes_per_sec)}/s</span>
+              </div>
+              <div className="flex flex-col text-right">
+                <span className="text-slate-500 uppercase">ETA</span>
+                <span className="text-yellow-400">{transferProgress.eta_seconds > 0 ? (transferProgress.eta_seconds < 60 ? Math.round(transferProgress.eta_seconds) + "s" : Math.round(transferProgress.eta_seconds / 60) + "m " + Math.round(transferProgress.eta_seconds % 60) + "s") : "Calculating..."}</span>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 

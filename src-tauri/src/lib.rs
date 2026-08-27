@@ -342,32 +342,71 @@ async fn delete_file(path: String) -> Result<(), String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+#[derive(Clone, serde::Serialize)]
+struct TransferProgress {
+    percent: f64,
+    current_file: String,
+    speed_bytes_per_sec: f64,
+    eta_seconds: f64,
+}
+
 #[tauri::command]
-async fn copy_file_to_directory(source: String, target_dir: String) -> Result<String, String> {
+async fn transfer_items(
+    app_handle: tauri::AppHandle,
+    sources: Vec<String>, 
+    target_dir: String
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let source_path = Path::new(&source);
-        let target_dir_path = Path::new(&target_dir);
+        use tauri::Emitter;
+        use std::time::Instant;
         
-        if !source_path.exists() {
-            return Err("Source file does not exist".into());
-        }
-        if !target_dir_path.is_dir() {
-            return Err("Target is not a directory".into());
-        }
+        let mut options = fs_extra::dir::CopyOptions::new();
+        options.copy_inside = true;
         
-        let file_name = source_path.file_name().ok_or("Invalid source file name")?;
-        let target_path = target_dir_path.join(file_name);
+        let mut last_emit = Instant::now();
+        let start_time = Instant::now();
         
-        if source_path.is_dir() {
-            let mut options = fs_extra::dir::CopyOptions::new();
-            options.copy_inside = true;
-            fs_extra::dir::copy(source_path, target_dir_path, &options).map_err(|e| e.to_string())?;
-        } else {
-            fs::copy(source_path, &target_path).map_err(|e| e.to_string())?;
-        }
-        
-        Ok(target_path.to_string_lossy().to_string())
-    }).await.map_err(|e| e.to_string())?
+        let handler = |process_info: fs_extra::TransitProcess| {
+            let now = Instant::now();
+            // Emit progress every 100ms
+            if now.duration_since(last_emit).as_millis() > 100 {
+                let percent = if process_info.total_bytes > 0 {
+                    (process_info.copied_bytes as f64 / process_info.total_bytes as f64) * 100.0
+                } else {
+                    0.0
+                };
+                
+                let elapsed = start_time.elapsed().as_secs_f64();
+                let speed = if elapsed > 0.0 {
+                    process_info.copied_bytes as f64 / elapsed
+                } else {
+                    0.0
+                };
+                
+                let remaining_bytes = process_info.total_bytes.saturating_sub(process_info.copied_bytes) as f64;
+                let eta = if speed > 0.0 {
+                    remaining_bytes / speed
+                } else {
+                    0.0
+                };
+                
+                let _ = app_handle.emit("transfer-progress", TransferProgress {
+                    percent,
+                    current_file: process_info.file_name.clone(),
+                    speed_bytes_per_sec: speed,
+                    eta_seconds: eta,
+                });
+                
+                last_emit = now;
+            }
+            fs_extra::dir::TransitProcessResult::ContinueOrAbort
+        };
+
+        fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler)
+            .map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())??;
+    
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -383,7 +422,7 @@ pub fn run() {
             read_directory, 
             get_disk_space, 
             delete_file, 
-            copy_file_to_directory
+            transfer_items
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
