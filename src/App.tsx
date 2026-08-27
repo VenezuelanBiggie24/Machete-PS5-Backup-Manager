@@ -13,6 +13,7 @@ interface FileItem {
   path: string;
   ppsa?: string;
   size_bytes?: number;
+  is_dir?: boolean;
 }
 
 interface MetadataInfo {
@@ -174,6 +175,19 @@ export default function App() {
     try {
       const result = await invoke<FileItem[]>('read_directory', { path: dir });
       setFiles(result);
+      
+      // Async folder size fetch
+      result.forEach(async (file) => {
+        if (file.is_dir) {
+          try {
+            const size = await invoke<number>('get_folder_size', { path: file.path });
+            setFiles(prev => prev.map(f => f.path === file.path ? { ...f, size_bytes: size } : f));
+          } catch (e) {
+            console.error("Error getting folder size for", file.path, e);
+          }
+        }
+      });
+
       
       try {
         const disk = await invoke<DiskInfo>('get_disk_space', { path: dir });
@@ -419,7 +433,7 @@ export default function App() {
             {currentDir ? currentDir.split('/').pop() || currentDir : t("drag_drop")}
           </h2>
           <span className="text-xs text-slate-500 font-mono bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
-            {files.length} ITEMS
+            {files.length} ITEMS • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
           </span>
           {/* Cyberpunk Grid Background */}
           <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#00f0ff 1px, transparent 1px), linear-gradient(90deg, #00f0ff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
