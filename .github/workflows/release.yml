@@ -2,8 +2,8 @@ name: "Release"
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -50,9 +50,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v1.1.0
-          releaseName: 'Machete PS5 Backup Manager v1.1.0'
-          releaseBody: 'Primera release multiplataforma compilada automáticamente.'
-          releaseDraft: false
+          tagName: v__VERSION__
+          releaseName: 'Machete PS5 Backup Manager v__VERSION__'
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
