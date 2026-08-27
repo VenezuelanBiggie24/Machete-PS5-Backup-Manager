@@ -49,10 +49,10 @@
   ],
   "license_info": "Distributed under the GPLv3 License",
   "repository_label": "Official Repository",
-  "changelog_v120_title": "v1.2.0 - Cyberpunk Transfers",
+  "changelog_v120_title": "v1.2.0",
   "changelog_v120_items": [
-    "Added drag & drop (and click) functionality to transfer files and folders.",
-    "New real-time Cyberpunk progress UI (Speed & ETA).",
-    "Fixed layout grid padding for perfect image blurring."
+    "Added file/folder transfer support via Drag & Drop and Click.",
+    "Added transfer progress UI (Speed and ETA calculation).",
+    "Fixed grid padding for perfect cover cropping."
   ]
 }
