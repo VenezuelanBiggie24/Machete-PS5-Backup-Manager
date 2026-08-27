@@ -79,6 +79,13 @@ Ve a la página de [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-
 > ```
 
 
+
+> [!NOTE]  
+> **Usuarios de Windows:** Al ejecutar el instalador por primera vez, es posible que salte la pantalla azul de Windows SmartScreen ("Windows protegió su PC"). Simplemente haz clic en **"Más información"** y luego en **"Ejecutar de todas formas"**.
+
+> [!NOTE]  
+> **Usuarios de Linux:** Si usas el formato `.AppImage`, recuerda otorgarle permisos de ejecución antes de abrirlo. Haz clic derecho en el archivo -> Propiedades -> Permisos -> Marca "Permitir ejecutar el archivo como un programa", o ejecuta `chmod +x Machete*.AppImage` en la terminal.
+
 ### Compilar desde el Código Fuente
 ```bash
 git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git
