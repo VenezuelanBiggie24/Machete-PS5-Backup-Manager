@@ -545,7 +545,7 @@ export default function App() {
                 <Info className="text-cyan-400" />
                 <div>
                   <div className="text-xs text-slate-400">{t("version_label")}</div>
-                  <div className="font-semibold text-white">1.1.0</div>
+                  <div className="font-semibold text-white">1.2.0</div>
                   <div className="text-[10px] text-cyan-500/80 mt-1">{t("license_info")}</div>
                 </div>
               </div>
@@ -568,6 +568,12 @@ export default function App() {
             <div className="mt-6 border-t border-cyan-500/30 pt-4">
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">{t("changelog_title")}</h3>
               <div className="bg-black/50 rounded-lg p-3 h-40 overflow-y-auto text-xs text-slate-300 space-y-3 font-mono border border-cyan-500/10 custom-scrollbar">
+                <div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v120_title")}</div>
+                  <ul className="list-disc pl-4 mt-1 opacity-80">
+                    {renderChangelogItems(t("changelog_v120_items", { returnObjects: true }))}
+                  </ul>
+                </div>
                 <div>
                   <div className="text-cyan-300 font-bold">{t("changelog_v110_title")}</div>
                   <ul className="list-disc pl-4 mt-1 opacity-80">

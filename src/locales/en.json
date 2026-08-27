@@ -48,5 +48,11 @@
     "Disk space calculation."
   ],
   "license_info": "Distributed under the GPLv3 License",
-  "repository_label": "Official Repository"
+  "repository_label": "Official Repository",
+  "changelog_v120_title": "v1.2.0 - Cyberpunk Transfers",
+  "changelog_v120_items": [
+    "Added drag & drop functionality to transfer backups.",
+    "New real-time Cyberpunk progress UI (Speed & ETA).",
+    "Fixed layout grid padding for perfect image blurring."
+  ]
 }
