@@ -60,5 +60,23 @@
   "changelog_v123_items": [
     "Corregido error de '0 GB' en el peso de carpetas.",
     "Añadido cálculo total de GB en la barra superior."
+  ],
+  "update_title": "소프트웨어 업데이트",
+  "update_check_btn": "업데이트 확인",
+  "update_checking": "확인 중...",
+  "update_none": "최신 버전입니다. 사용 가능한 업데이트가 없습니다.",
+  "update_error": "업데이트를 확인할 수 없습니다. 나중에 다시 시도해 주세요.",
+  "update_available_title": "업데이트 사용 가능",
+  "update_downloading": "업데이트 다운로드 중...",
+  "update_install_btn": "다운로드 및 설치",
+  "update_later": "나중에",
+  "update_relaunch": "지금 다시 시작",
+  "changelog_v202_title": "v2.0.2 - Auto-Updater",
+  "changelog_v202_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "All updater UI fully translated to 12 languages."
   ]
 }

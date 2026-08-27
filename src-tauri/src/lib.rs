@@ -393,8 +393,10 @@ async fn transfer_items(app_handle: tauri::AppHandle, sources: Vec<String>, targ
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-                .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             fetch_metadata_rs,
             save_custom_title,

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Machete PS5 Backup Manager",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "identifier": "com.thebigmike.machete",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -33,6 +33,15 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "createUpdaterArtifacts": "v1Compatible"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI5MTZDOEM0RTdDOEIzMEIKUldRTHM4am54TWdXS1E0Q2RBaGFwRzF6VmRQYW1CdlpjRTZxV1hENEJtRGY3eDU5NmxHZ0F2dVcK",
+      "endpoints": [
+        "https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

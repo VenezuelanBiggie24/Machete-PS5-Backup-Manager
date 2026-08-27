@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
@@ -11,6 +11,9 @@ import { playScanSound, playSuccessSound } from './utils/audio';
 import i18n from './i18n';
 import logoUrl from './assets/logo.jpg';
 import { message, confirm, open } from '@tauri-apps/plugin-dialog';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { getVersion } from '@tauri-apps/api/app';
 
 interface FileItem {
   name: string;
@@ -130,6 +133,32 @@ export default function App() {
   // Rename modal states
   const [renameData, setRenameData] = useState<{ppsa: string, title: string} | null>(null);
   const [renameInput, setRenameInput] = useState("");
+
+  // Dynamic version & updater states
+  const [appVersion, setAppVersion] = useState("");
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(null);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [updateDone, setUpdateDone] = useState(false);
+
+  // Fetch the real app version on mount
+  useEffect(() => {
+    getVersion().then(v => setAppVersion(v)).catch(() => setAppVersion("?"));
+  }, []);
+
+  // Auto-check for updates on startup
+  useEffect(() => {
+    const autoCheck = async () => {
+      try {
+        const update = await check();
+        if (update?.available) {
+          setUpdateAvailable({ version: update.version, body: update.body || "" });
+        }
+      } catch (_) { /* silent fail on startup */ }
+    };
+    autoCheck();
+  }, []);
 
   const startTransfer = async (payload: string[]) => {
     if (!currentDirRef.current) return;
@@ -324,6 +353,50 @@ export default function App() {
       }
     }
     setRenameData(null);
+  };
+
+  const checkForUpdates = async () => {
+    setUpdateChecking(true);
+    try {
+      const update = await check();
+      if (update?.available) {
+        setUpdateAvailable({ version: update.version, body: update.body || "" });
+      } else {
+        await message(t("update_none"), { title: t("update_title"), kind: "info" });
+      }
+    } catch (e) {
+      await message(t("update_error"), { title: "Error", kind: "error" });
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
+
+  const downloadAndInstall = async () => {
+    setUpdateDownloading(true);
+    setUpdateProgress(0);
+    try {
+      const update = await check();
+      if (update?.available) {
+        let totalLength = 0;
+        let downloaded = 0;
+        await update.downloadAndInstall((event) => {
+          if (event.event === 'Started' && event.data.contentLength) {
+            totalLength = event.data.contentLength;
+          } else if (event.event === 'Progress') {
+            downloaded += event.data.chunkLength;
+            if (totalLength > 0) {
+              setUpdateProgress(Math.round((downloaded / totalLength) * 100));
+            }
+          } else if (event.event === 'Finished') {
+            setUpdateProgress(100);
+          }
+        });
+        setUpdateDone(true);
+      }
+    } catch (e) {
+      await message(t("update_error"), { title: "Error", kind: "error" });
+      setUpdateDownloading(false);
+    }
   };
 
   const renderChangelogItems = (items: any) => {
@@ -548,10 +621,22 @@ export default function App() {
                 <Info className="text-cyan-400" />
                 <div>
                   <div className="text-xs text-slate-400">{t("version_label")}</div>
-                  <div className="font-semibold text-white">1.2.0</div>
+                  <div className="font-semibold text-white">v{appVersion}</div>
                   <div className="text-[10px] text-cyan-500/80 mt-1">{t("license_info")}</div>
                 </div>
               </div>
+              <button 
+                onClick={checkForUpdates}
+                disabled={updateChecking}
+                className="flex items-center gap-2 w-full mt-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-all bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/50 disabled:opacity-50 disabled:cursor-wait"
+              >
+                {updateChecking ? (
+                  <div className="w-4 h-4 border-2 border-slate-800 border-t-cyan-400 rounded-full animate-spin"></div>
+                ) : (
+                  <ArrowUpCircle className="w-4 h-4" />
+                )}
+                {updateChecking ? t("update_checking") : t("update_check_btn")}
+              </button>
               <a 
                 href="https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager" 
                 target="_blank" 
@@ -571,6 +656,12 @@ export default function App() {
             <div className="mt-6 border-t border-cyan-500/30 pt-4">
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">{t("changelog_title")}</h3>
               <div className="bg-black/50 rounded-lg p-3 h-40 overflow-y-auto text-xs text-slate-300 space-y-3 font-mono border border-cyan-500/10 custom-scrollbar">
+                <div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v202_title")}</div>
+                  <ul className="list-disc pl-4 mt-1 opacity-80">
+                    {renderChangelogItems(t("changelog_v202_items", { returnObjects: true }))}
+                  </ul>
+                </div>
                 <div>
                   <div className="text-cyan-300 font-bold">{t("changelog_v200_title")}</div>
                   <ul className="list-disc pl-4 mt-1 opacity-80">
@@ -613,6 +704,77 @@ export default function App() {
                     {renderChangelogItems(t("changelog_v010_items", { returnObjects: true }))}
                   </ul>
                 </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      {/* Update Available Modal */}
+      {updateAvailable && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center backdrop-blur-md bg-black/60 p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-slate-900/95 border border-cyan-500/40 p-8 rounded-2xl max-w-md w-full shadow-2xl shadow-cyan-900/30 neon-border relative overflow-hidden"
+          >
+            <div className="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <ArrowUpCircle className="w-8 h-8 text-cyan-400" />
+                <div>
+                  <h3 className="text-xl font-bold text-white">{t("update_available_title")}</h3>
+                  <p className="text-xs text-slate-400 font-mono">v{appVersion} → v{updateAvailable.version}</p>
+                </div>
+              </div>
+
+              {updateAvailable.body && (
+                <div className="bg-black/50 rounded-lg p-3 mb-4 max-h-40 overflow-y-auto text-xs text-slate-300 font-mono border border-cyan-500/10 custom-scrollbar whitespace-pre-wrap">
+                  {updateAvailable.body}
+                </div>
+              )}
+
+              {updateDownloading && (
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs font-mono mb-1">
+                    <span className="text-slate-400">{t("update_downloading")}</span>
+                    <span className="text-cyan-400">{updateProgress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
+                    <div 
+                      className="bg-gradient-to-r from-cyan-600 to-cyan-300 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                      style={{ width: `${updateProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end">
+                {!updateDownloading && !updateDone && (
+                  <>
+                    <button 
+                      onClick={() => setUpdateAvailable(null)}
+                      className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
+                    >
+                      {t("update_later")}
+                    </button>
+                    <button 
+                      onClick={downloadAndInstall}
+                      className="px-4 py-2 text-sm font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-900 rounded-lg transition-colors shadow-[0_0_15px_rgba(0,240,255,0.3)]"
+                    >
+                      {t("update_install_btn")}
+                    </button>
+                  </>
+                )}
+                {updateDone && (
+                  <button 
+                    onClick={() => relaunch()}
+                    className="px-6 py-2 text-sm font-bold bg-green-500 hover:bg-green-400 text-slate-900 rounded-lg transition-colors animate-pulse"
+                  >
+                    {t("update_relaunch")}
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
