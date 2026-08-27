@@ -48,5 +48,17 @@
     "Disk space calculation."
   ],
   "license_info": "Unter der GPLv3-Lizenz vertrieben",
-  "repository_label": "Offizielles Repository"
+  "repository_label": "Offizielles Repository",
+  "changelog_v200_title": "v2.0.0-alpha.1",
+  "changelog_v200_items": [
+    "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
+    "Motor I/O asíncrono impulsado por Tokio.",
+    "Cálculo de hashes Blake3 Anti Bit-Rot.",
+    "Cálculo dinámico del tamaño total del directorio."
+  ],
+  "changelog_v123_title": "v1.2.3",
+  "changelog_v123_items": [
+    "Corregido error de '0 GB' en el peso de carpetas.",
+    "Añadido cálculo total de GB en la barra superior."
+  ]
 }
