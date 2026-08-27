@@ -1,3 +1,7 @@
+<div align="right">
+  <strong>🇺🇸 English</strong> | <a href="README_es.md">🇪🇸 Español</a> | <a href="README_ve.md">🇻🇪 Español (Venezuela)</a>
+</div>
+
 <div align="center">
 
 # 🔪 Machete PS5 Backup Manager
