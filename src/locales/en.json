@@ -54,5 +54,10 @@
     "Added file/folder transfer support via Drag & Drop and Click.",
     "Added transfer progress UI (Speed and ETA calculation).",
     "Fixed grid padding for perfect cover cropping."
+  ],
+  "changelog_v124_title": "v1.2.4",
+  "changelog_v124_items": [
+    "Corregido error de '0 GB' en el peso de carpetas.",
+    "Añadido cálculo total de GB en la barra superior."
   ]
 }

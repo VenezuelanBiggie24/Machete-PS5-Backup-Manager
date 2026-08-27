@@ -622,6 +622,12 @@ export default function App() {
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">{t("changelog_title")}</h3>
               <div className="bg-black/50 rounded-lg p-3 h-40 overflow-y-auto text-xs text-slate-300 space-y-3 font-mono border border-cyan-500/10 custom-scrollbar">
                 <div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v124_title")}</div>
+                  <ul className="list-disc pl-4 mt-1 opacity-80">
+                    {renderChangelogItems(t("changelog_v124_items", { returnObjects: true }))}
+                  </ul>
+                </div>
+                <div>
                   <div className="text-cyan-300 font-bold">{t("changelog_v120_title")}</div>
                   <ul className="list-disc pl-4 mt-1 opacity-80">
                     {renderChangelogItems(t("changelog_v120_items", { returnObjects: true }))}
