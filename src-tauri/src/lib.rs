@@ -46,30 +46,36 @@ fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
     app_data.join("machete_custom_meta.json")
 }
 
-fn load_custom_metadata(app: &tauri::AppHandle) -> HashMap<String, CustomMeta> {
+fn load_custom_metadata(app: &tauri::AppHandle) -> Result<HashMap<String, CustomMeta>, String> {
     let file_path = get_custom_meta_file(app);
-    if let Ok(content) = fs::read_to_string(file_path) {
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        HashMap::new()
+    match fs::read_to_string(&file_path) {
+        Ok(content) => {
+            serde_json::from_str(&content).map_err(|e| format!("Failed to parse JSON: {}", e))
+        },
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Ok(HashMap::new())
+            } else {
+                Err(format!("Error reading file {}: {}", file_path.display(), e))
+            }
+        }
     }
 }
 
-fn save_custom_metadata(app: &tauri::AppHandle, data: &HashMap<String, CustomMeta>) {
+fn save_custom_metadata(app: &tauri::AppHandle, data: &HashMap<String, CustomMeta>) -> Result<(), String> {
     let file_path = get_custom_meta_file(app);
-    if let Ok(content) = serde_json::to_string_pretty(data) {
-        let _ = fs::write(file_path, content);
-    }
+    let content = serde_json::to_string_pretty(data).map_err(|e| format!("Failed to serialize JSON: {}", e))?;
+    fs::write(&file_path, content).map_err(|e| format!("Error writing file {}: {}", file_path.display(), e))
 }
 
 #[tauri::command]
 async fn save_custom_title(app: tauri::AppHandle, ppsa: String, title: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let clean_ppsa = ppsa.replace("-", "").replace("_", "").replace(" ", "");
-        let mut db = load_custom_metadata(&app);
+        let mut db = load_custom_metadata(&app)?;
         let entry = db.entry(clean_ppsa).or_default();
         entry.title = Some(title);
-        save_custom_metadata(&app, &db);
+        save_custom_metadata(&app, &db)?;
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -98,10 +104,10 @@ async fn save_custom_cover(app: tauri::AppHandle, ppsa: String, image_path: Stri
         
         let base64_img = format!("data:{};base64,{}", mime_type, general_purpose::STANDARD.encode(&buffer));
         
-        let mut db = load_custom_metadata(&app);
+        let mut db = load_custom_metadata(&app)?;
         let entry = db.entry(clean_ppsa).or_default();
         entry.cover_base64 = Some(base64_img.clone());
-        save_custom_metadata(&app, &db);
+        save_custom_metadata(&app, &db)?;
         
         Ok(base64_img)
     }).await.map_err(|e| e.to_string())?
@@ -112,7 +118,7 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
     let clean_ppsa = ppsa.replace("-", "").replace("_", "").replace(" ", "");
     
     // Check local database first
-    let db = load_custom_metadata(&app);
+    let db = load_custom_metadata(&app).unwrap_or_default();
     let custom_entry = db.get(&clean_ppsa).cloned();
     
     // We use tauri::async_runtime::spawn_blocking to run blocking code without blocking the async executor
@@ -277,12 +283,10 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     }
                     
                     let mut size_bytes = 0;
-                    if path_buf.is_dir() {
-                        if let Ok(size) = fs_extra::dir::get_size(&path_buf) {
-                            size_bytes = size;
+                    if !path_buf.is_dir() {
+                        if let Ok(metadata) = fs::metadata(&path_buf) {
+                            size_bytes = metadata.len();
                         }
-                    } else if let Ok(metadata) = fs::metadata(&path_buf) {
-                        size_bytes = metadata.len();
                     }
                     
                     files.push(FileItem {
@@ -310,7 +314,9 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
 
         for disk in disks.iter() {
             let mount = disk.mount_point();
-            if path.starts_with(mount) {
+            let path_str = path.to_string_lossy().to_lowercase();
+            let mount_str = mount.to_string_lossy().to_lowercase();
+            if path_str.starts_with(&mount_str) {
                 let prefix_len = mount.components().count();
                 if prefix_len > longest_prefix {
                     longest_prefix = prefix_len;
@@ -364,7 +370,8 @@ async fn transfer_items(
         options.copy_inside = true;
         
         let mut last_emit = Instant::now();
-        let start_time = Instant::now();
+        let mut last_copied_bytes = 0u64;
+        let mut last_time = Instant::now();
         
         let handler = |process_info: fs_extra::TransitProcess| {
             let now = Instant::now();
@@ -376,12 +383,15 @@ async fn transfer_items(
                     0.0
                 };
                 
-                let elapsed = start_time.elapsed().as_secs_f64();
-                let speed = if elapsed > 0.0 {
-                    process_info.copied_bytes as f64 / elapsed
+                let elapsed_since_last = now.duration_since(last_time).as_secs_f64();
+                let bytes_since_last = process_info.copied_bytes.saturating_sub(last_copied_bytes) as f64;
+                let speed = if elapsed_since_last > 0.0 {
+                    bytes_since_last / elapsed_since_last
                 } else {
                     0.0
                 };
+                last_copied_bytes = process_info.copied_bytes;
+                last_time = now;
                 
                 let remaining_bytes = process_info.total_bytes.saturating_sub(process_info.copied_bytes) as f64;
                 let eta = if speed > 0.0 {
@@ -412,8 +422,7 @@ async fn transfer_items(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
+                .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             fetch_metadata_rs,
