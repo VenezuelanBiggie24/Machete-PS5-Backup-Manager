@@ -79,6 +79,13 @@ Head to the [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-
 > ```
 
 
+
+> [!NOTE]  
+> **Windows Users:** When running the installer for the first time, Windows SmartScreen might block it showing a blue "Windows protected your PC" screen. Simply click **"More info"** and then **"Run anyway"**.
+
+> [!NOTE]  
+> **Linux Users:** If you use the `.AppImage` format, remember to grant it execution permissions. Right-click the file -> Properties -> Permissions -> Check "Allow executing file as program", or run `chmod +x Machete*.AppImage` in your terminal.
+
 ### Build from Source
 ```bash
 git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git
