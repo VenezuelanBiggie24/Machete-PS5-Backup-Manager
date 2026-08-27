@@ -54,5 +54,10 @@
     "Soporte para transferencia de archivos/carpetas (Drag & Drop y Click).",
     "UI de progreso de transferencia añadida (Velocidad y ETA).",
     "Corrección del padding de la cuadrícula para la generación de recortes."
+  ],
+  "changelog_v124_title": "v1.2.4",
+  "changelog_v124_items": [
+    "Corregido error de '0 GB' en el peso de carpetas.",
+    "Añadido cálculo total de GB en la barra superior."
   ]
 }

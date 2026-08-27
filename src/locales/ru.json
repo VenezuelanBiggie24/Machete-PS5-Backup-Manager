@@ -48,5 +48,10 @@
     "Disk space calculation."
   ],
   "license_info": "Распространяется по лицензии GPLv3",
-  "repository_label": "Официальный репозиторий"
+  "repository_label": "Официальный репозиторий",
+  "changelog_v124_title": "v1.2.4",
+  "changelog_v124_items": [
+    "Corregido error de '0 GB' en el peso de carpetas.",
+    "Añadido cálculo total de GB en la barra superior."
+  ]
 }
