@@ -49,10 +49,10 @@
   ],
   "license_info": "Distribuido bajo la Licencia GPLv3",
   "repository_label": "Repositorio Oficial",
-  "changelog_v120_title": "v1.2.0 - Transferencias Cyberpunk",
+  "changelog_v120_title": "v1.2.0",
   "changelog_v120_items": [
-    "Añadida función drag & drop (y click) para transferir archivos y carpetas al disco.",
-    "Nueva interfaz Cyberpunk de progreso en tiempo real (Velocidad y ETA).",
-    "Arreglados los márgenes de la cuadrícula para el difuminado perfecto de carátulas."
+    "Soporte para transferencia de archivos/carpetas (Drag & Drop y Click).",
+    "UI de progreso de transferencia añadida (Velocidad y ETA).",
+    "Corrección del padding de la cuadrícula para la generación de recortes."
   ]
 }
