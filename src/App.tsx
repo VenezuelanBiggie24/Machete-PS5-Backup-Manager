@@ -272,6 +272,10 @@ export default function App() {
   }, [currentDir]);
   useEffect(() => {
     document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+    const timer = setTimeout(() => {
+      checkForUpdates(true);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -399,17 +403,30 @@ export default function App() {
     setRenameData(null);
   };
 
-  const checkForUpdates = async () => {
+  const checkForUpdates = async (silent = false) => {
     setUpdateChecking(true);
     try {
       const update = await check();
       if (update?.available) {
         setUpdateAvailable({ version: update.version, body: update.body || "" });
       } else {
-        await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        if (!silent) {
+          await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        }
       }
-    } catch (e) {
-      await message(t("update_error"), { title: "Error", kind: "error" });
+    } catch (e: any) {
+      console.warn("Update check error:", e);
+      const errStr = String(e || "");
+      // If endpoint returns 404 / Not Found, it means no newer release manifest is published yet
+      if (errStr.includes("404") || errStr.toLowerCase().includes("not found") || errStr.toLowerCase().includes("no update")) {
+        if (!silent) {
+          await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        }
+      } else {
+        if (!silent) {
+          await message(t("update_error"), { title: "Error", kind: "error" });
+        }
+      }
     } finally {
       setUpdateChecking(false);
     }
@@ -670,7 +687,7 @@ export default function App() {
                 </div>
               </div>
               <button 
-                onClick={checkForUpdates}
+                onClick={() => checkForUpdates(false)}
                 disabled={updateChecking}
                 className="flex items-center gap-2 w-full mt-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-all bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/50 disabled:opacity-50 disabled:cursor-wait"
               >
