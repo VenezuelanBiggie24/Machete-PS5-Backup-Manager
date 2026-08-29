@@ -397,6 +397,45 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
+                use tauri::Emitter;
+
+                let check_update_item = MenuItemBuilder::with_id("check_update", "Buscar actualizaciones...").build(app)?;
+                let about_item = MenuItemBuilder::with_id("open_about", "Acerca de Machete").build(app)?;
+                
+                let app_submenu = SubmenuBuilder::new(app, "Machete")
+                    .item(&about_item)
+                    .item(&check_update_item)
+                    .separator()
+                    .item(&PredefinedMenuItem::services(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::hide(app, None)?)
+                    .item(&PredefinedMenuItem::hide_others(app, None)?)
+                    .item(&PredefinedMenuItem::show_all(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::quit(app, None)?)
+                    .build()?;
+
+                let menu = MenuBuilder::new(app)
+                    .item(&app_submenu)
+                    .build()?;
+
+                app.set_menu(menu)?;
+
+                let handle = app.handle().clone();
+                app.on_menu_event(move |_app, event| {
+                    if event.id() == "check_update" {
+                        let _ = handle.emit("menu-check-update", ());
+                    } else if event.id() == "open_about" {
+                        let _ = handle.emit("menu-open-about", ());
+                    }
+                });
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             fetch_metadata_rs,
             save_custom_title,

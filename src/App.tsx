@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
@@ -286,9 +286,18 @@ export default function App() {
 
     
 
+    const unlistenAbout = listen('menu-open-about', () => {
+      setShowAbout(true);
+    });
+
+    const unlistenCheckUpdate = listen('menu-check-update', () => {
+      checkForUpdates();
+    });
+
     return () => {
       unlistenDrop.then(f => f()).catch(console.error);
-      
+      unlistenAbout.then(f => f()).catch(console.error);
+      unlistenCheckUpdate.then(f => f()).catch(console.error);
     };
   }, []);
 
@@ -709,77 +718,93 @@ export default function App() {
           </motion.div>
         </div>
       )}
-      {/* Update Available Modal */}
-      {updateAvailable && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center backdrop-blur-md bg-black/60 p-4">
+      {/* Floating Mini Update Banner (Non-intrusive Cyberpunk Toast) */}
+      <AnimatePresence>
+        {updateAvailable && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900/95 border border-cyan-500/40 p-8 rounded-2xl max-w-md w-full shadow-2xl shadow-cyan-900/30 neon-border relative overflow-hidden"
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 right-6 z-50 max-w-sm w-full p-4 rounded-xl bg-slate-900/95 border border-cyan-500/50 shadow-2xl shadow-cyan-950/80 backdrop-blur-md neon-border"
           >
-            <div className="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl"></div>
-            
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-4">
-                <ArrowUpCircle className="w-8 h-8 text-cyan-400" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400">
+                  <ArrowUpCircle className="w-5 h-5 animate-pulse" />
+                </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">{t("update_available_title")}</h3>
-                  <p className="text-xs text-slate-400 font-mono">v{appVersion} → v{updateAvailable.version}</p>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    {t("update_available_title")}
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      v{updateAvailable.version}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    v{appVersion} → v{updateAvailable.version}
+                  </p>
                 </div>
               </div>
-
-              {updateAvailable.body && (
-                <div className="bg-black/50 rounded-lg p-3 mb-4 max-h-40 overflow-y-auto text-xs text-slate-300 font-mono border border-cyan-500/10 custom-scrollbar whitespace-pre-wrap">
-                  {updateAvailable.body}
-                </div>
+              {!updateDownloading && !updateDone && (
+                <button 
+                  onClick={() => setUpdateAvailable(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors"
+                  title={t("update_later")}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               )}
+            </div>
 
-              {updateDownloading && (
-                <div className="mb-4">
-                  <div className="flex justify-between text-xs font-mono mb-1">
-                    <span className="text-slate-400">{t("update_downloading")}</span>
-                    <span className="text-cyan-400">{updateProgress}%</span>
-                  </div>
-                  <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
-                    <div 
-                      className="bg-gradient-to-r from-cyan-600 to-cyan-300 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(34,211,238,0.5)]"
-                      style={{ width: `${updateProgress}%` }}
-                    ></div>
-                  </div>
+            {updateAvailable.body && (
+              <div className="mt-2.5 max-h-24 overflow-y-auto p-2 bg-black/40 rounded border border-slate-800 text-[11px] text-slate-300 font-mono custom-scrollbar whitespace-pre-wrap">
+                {updateAvailable.body}
+              </div>
+            )}
+
+            {updateDownloading && (
+              <div className="mt-3">
+                <div className="flex justify-between text-[11px] font-mono mb-1">
+                  <span className="text-slate-400">{t("update_downloading")}</span>
+                  <span className="text-cyan-400 font-bold">{updateProgress}%</span>
                 </div>
-              )}
+                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                  <div 
+                    className="bg-gradient-to-r from-cyan-600 to-cyan-300 h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(34,211,238,0.5)]"
+                    style={{ width: `${updateProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
 
-              <div className="flex gap-3 justify-end">
-                {!updateDownloading && !updateDone && (
-                  <>
-                    <button 
-                      onClick={() => setUpdateAvailable(null)}
-                      className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
-                    >
-                      {t("update_later")}
-                    </button>
-                    <button 
-                      onClick={downloadAndInstall}
-                      className="px-4 py-2 text-sm font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-900 rounded-lg transition-colors shadow-[0_0_15px_rgba(0,240,255,0.3)]"
-                    >
-                      {t("update_install_btn")}
-                    </button>
-                  </>
-                )}
-                {updateDone && (
+            <div className="mt-3 flex items-center justify-end gap-2">
+              {!updateDownloading && !updateDone && (
+                <>
                   <button 
-                    onClick={() => relaunch()}
-                    className="px-6 py-2 text-sm font-bold bg-green-500 hover:bg-green-400 text-slate-900 rounded-lg transition-colors animate-pulse"
+                    onClick={() => setUpdateAvailable(null)}
+                    className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
                   >
-                    {t("update_relaunch")}
+                    {t("update_later")}
                   </button>
-                )}
-              </div>
+                  <button 
+                    onClick={downloadAndInstall}
+                    className="px-3 py-1.5 text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-lg transition-all shadow-[0_0_12px_rgba(0,240,255,0.3)] hover:shadow-[0_0_16px_rgba(0,240,255,0.5)] cursor-pointer"
+                  >
+                    {t("update_install_btn")}
+                  </button>
+                </>
+              )}
+              {updateDone && (
+                <button 
+                  onClick={() => relaunch()}
+                  className="w-full py-2 text-xs font-bold bg-green-500 hover:bg-green-400 text-slate-950 rounded-lg transition-all shadow-[0_0_15px_rgba(34,197,94,0.4)] animate-pulse cursor-pointer"
+                >
+                  {t("update_relaunch")}
+                </button>
+              )}
             </div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
       <HackerConsole logs={logs} />
     </div>
   );
