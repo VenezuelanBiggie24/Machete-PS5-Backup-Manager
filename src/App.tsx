@@ -271,20 +271,27 @@ export default function App() {
     currentDirRef.current = currentDir;
   }, [currentDir]);
   useEffect(() => {
-    const unlistenDrop = listen('tauri://file-drop', async (event) => {
-      const payload = event.payload as string[];
-      if (payload && payload.length > 0) {
+    document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+  }, []);
+
+  useEffect(() => {
+    const handleDragDrop = (event: any) => {
+      const paths: string[] = Array.isArray(event.payload)
+        ? event.payload
+        : event.payload?.paths || [];
+      if (paths && paths.length > 0) {
         if (currentDirRef.current) {
-          startTransfer(payload);
+          startTransfer(paths);
         } else {
-          const firstPath = payload[0];
+          const firstPath = paths[0];
           setCurrentDir(firstPath);
           loadDirectory(firstPath);
         }
       }
-    });
+    };
 
-    
+    const unlistenDropLegacy = listen('tauri://file-drop', handleDragDrop);
+    const unlistenDragDrop = listen('tauri://drag-drop', handleDragDrop);
 
     const unlistenAbout = listen('menu-open-about', () => {
       setShowAbout(true);
@@ -295,7 +302,8 @@ export default function App() {
     });
 
     return () => {
-      unlistenDrop.then(f => f()).catch(console.error);
+      unlistenDropLegacy.then(f => f()).catch(console.error);
+      unlistenDragDrop.then(f => f()).catch(console.error);
       unlistenAbout.then(f => f()).catch(console.error);
       unlistenCheckUpdate.then(f => f()).catch(console.error);
     };
@@ -303,6 +311,10 @@ export default function App() {
 
   const handleChangeLanguage = (lang: string) => {
     i18n.changeLanguage(lang);
+    try {
+      localStorage.setItem('machete_lang', lang);
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    } catch (_) {}
   };
 
   const handleDelete = async (filePath: string) => {

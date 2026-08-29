@@ -6,9 +6,29 @@ const getAudioContext = (() => {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       ctx = new AudioContextClass();
     }
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     return ctx;
   };
 })();
+
+// Pre-allocated white noise buffer for blade/machete sound to avoid memory allocations
+let cachedNoiseBuffer: AudioBuffer | null = null;
+const getNoiseBuffer = (ctx: AudioContext): AudioBuffer => {
+  if (!cachedNoiseBuffer || cachedNoiseBuffer.sampleRate !== ctx.sampleRate) {
+    const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+    cachedNoiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = cachedNoiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+  }
+  return cachedNoiseBuffer;
+};
+
+// Throttle hover sounds to avoid audio distortion during fast cursor movements
+let lastHoverTime = 0;
 
 /**
  * PS Tile Navigation (Hover / Focus sound)
@@ -16,9 +36,11 @@ const getAudioContext = (() => {
  */
 export const playHoverSound = () => {
   try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
+    const nowMs = performance.now();
+    if (nowMs - lastHoverTime < 45) return; // 45ms throttle
+    lastHoverTime = nowMs;
 
+    const ctx = getAudioContext();
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const filter = ctx.createBiquadFilter();
@@ -31,7 +53,7 @@ export const playHoverSound = () => {
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(1400, now);
 
-    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.setValueAtTime(0.035, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
 
     osc.connect(filter);
@@ -40,9 +62,13 @@ export const playHoverSound = () => {
 
     osc.start(now);
     osc.stop(now + 0.05);
-  } catch (_) {
-    // Ignore audio context errors
-  }
+
+    osc.onended = () => {
+      osc.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+    };
+  } catch (_) {}
 };
 
 /**
@@ -52,8 +78,6 @@ export const playHoverSound = () => {
 export const playSelectSound = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-
     const now = ctx.currentTime;
 
     const playHarmonic = (freq: number, gainVol: number, decay: number) => {
@@ -70,6 +94,11 @@ export const playSelectSound = () => {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + decay);
+
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
     };
 
     playHarmonic(880, 0.05, 0.22);    // A5
@@ -85,8 +114,6 @@ export const playSelectSound = () => {
 export const playCancelSound = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -103,6 +130,11 @@ export const playCancelSound = () => {
 
     osc.start(now);
     osc.stop(now + 0.13);
+
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
   } catch (_) {}
 };
 
@@ -113,8 +145,6 @@ export const playCancelSound = () => {
 export const playScanSound = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-
     const now = ctx.currentTime;
     // PS5 Ambient Chord: C5, E5, G5, B5, D6
     const chord = [523.25, 659.25, 783.99, 987.77, 1174.66];
@@ -144,6 +174,12 @@ export const playScanSound = () => {
 
       osc.start(startTime);
       osc.stop(startTime + duration);
+
+      osc.onended = () => {
+        osc.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      };
     });
   } catch (_) {}
 };
@@ -155,20 +191,11 @@ export const playScanSound = () => {
 export const playMacheteSound = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-
     const now = ctx.currentTime;
 
-    // 1. Digital Blade Whoosh (Filtered White Noise Burst)
-    const bufferSize = ctx.sampleRate * 0.12;
-    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      output[i] = Math.random() * 2 - 1;
-    }
-
+    // 1. Digital Blade Whoosh (Pre-allocated Filtered Noise Burst)
     const whiteNoise = ctx.createBufferSource();
-    whiteNoise.buffer = noiseBuffer;
+    whiteNoise.buffer = getNoiseBuffer(ctx);
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
@@ -200,6 +227,17 @@ export const playMacheteSound = () => {
     subGain.connect(ctx.destination);
     subOsc.start(now);
     subOsc.stop(now + 0.2);
+
+    whiteNoise.onended = () => {
+      whiteNoise.disconnect();
+      filter.disconnect();
+      noiseGain.disconnect();
+    };
+
+    subOsc.onended = () => {
+      subOsc.disconnect();
+      subGain.disconnect();
+    };
   } catch (_) {}
 };
 
@@ -210,8 +248,6 @@ export const playMacheteSound = () => {
 export const playSuccessSound = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
-
     const now = ctx.currentTime;
     // Ascending crystal notes: E5, G#5, B5, E6
     const notes = [659.25, 830.61, 987.77, 1318.51];
@@ -234,6 +270,11 @@ export const playSuccessSound = () => {
 
       osc.start(startTime);
       osc.stop(startTime + duration);
+
+      osc.onended = () => {
+        osc.disconnect();
+        gain.disconnect();
+      };
     });
   } catch (_) {}
 };

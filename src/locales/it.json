@@ -1,0 +1,81 @@
+{
+  "app_name": "Machete PS5 Backup Manager",
+  "drag_drop": "Trascina e rilascia qui per copiare",
+  "machetear": "MACHETEAR (Elimina)",
+  "about": "Informazioni su Machete",
+  "free_space": "Spazio Libero",
+  "used_space": "Usato",
+  "author": "VenezuelanBiggie24",
+  "select_dir": "Seleziona Cartella",
+  "current_dir": "Cartella Corrente:",
+  "about_desc": "Sviluppato da VenezuelanBiggie24, un orgoglioso sviluppatore venezuelano. Anche se le difficoltà mi hanno costretto a lasciare la mia terra natale, quell'avversità si è trasformata in resilienza, permettendomi oggi di scrivere codice e creare soluzioni senza confini da qualsiasi parte del mondo.",
+  "app_subtitle": "Gestore di Backup PS5 Universale",
+  "author_label": "Autore",
+  "version_label": "Versione",
+  "scanning_dir": "SCANSIONE CARTELLA IN CORSO...",
+  "delete_confirm_title": "Conferma Eliminazione",
+  "delete_confirm_msg": "Sei sicuro di voler eliminare definitivamente questo titolo? Questa azione non può essere annullata.",
+  "ssd_warning": "Il caricamento di file di grandi dimensioni potrebbe richiedere qualche istante...",
+  "cover_dimensions_warning": "Per una visualizzazione ottimale, usa un'immagine verticale (proporzioni 3:4).",
+  "edit_title": "Rinomina Titolo",
+  "change_cover": "Cambia Copertina",
+  "rename_prompt": "Inserisci il nuovo titolo per questo gioco:",
+  "changelog_title": "Cronologia delle Modifiche",
+  "changelog_v125_title": "v1.2.5 - Auto-Aggiornatore",
+  "changelog_v125_items": [
+    "Auto-aggiornatore integrato: controlla nuove versioni direttamente da GitHub Releases.",
+    "Scarica e installa gli aggiornamenti con barra di avanzamento.",
+    "Visualizzazione dinamica della versione nella sezione Info.",
+    "Controllo automatico degli aggiornamenti all'avvio.",
+    "Interfaccia dell'aggiornatore completamente tradotta."
+  ],
+  "changelog_v124_title": "v1.2.4",
+  "changelog_v124_items": [
+    "Corretto bug '0 GB' nella dimensione delle cartelle.",
+    "Aggiunto calcolo totale dei GB nella barra superiore."
+  ],
+  "changelog_v120_title": "v1.2.0",
+  "changelog_v120_items": [
+    "Supporto per il trasferimento di file/cartelle (Drag & Drop e Click).",
+    "Interfaccia di avanzamento del trasferimento aggiunta (Velocità ed ETA).",
+    "Correzione della spaziatura della griglia per un perfetto ritaglio delle copertine."
+  ],
+  "changelog_v110_title": "v1.1.0",
+  "changelog_v110_items": [
+    "Supporto per copertine e titoli personalizzati (database locale).",
+    "Dimensione della finestra aumentata per un layout ottimale.",
+    "Aggiunto avviso SSD durante la scansione.",
+    "Changelog e finestre di dialogo localizzati."
+  ],
+  "changelog_v100_title": "v1.0.0",
+  "changelog_v100_items": [
+    "Rinomina ufficiale in Machete PS5 Backup Manager.",
+    "Recupero intelligente delle copertine per ID non registrati.",
+    "Badge PPSA riposizionato in basso a destra.",
+    "Anonimizzazione rigorosa delle richieste a SerialStation."
+  ],
+  "changelog_v020_title": "v0.2.0",
+  "changelog_v020_items": [
+    "Sistema di prevenzione dell'eliminazione (Dialogo nativo).",
+    "Ristrutturazione dell'interfaccia in stile Cyberpunk.",
+    "Supporto per 11 lingue con cambio dinamico."
+  ],
+  "changelog_v010_title": "v0.1.0",
+  "changelog_v010_items": [
+    "Proof of concept. Lettura asincrona dei file.",
+    "Connessione iniziale con l'API di SerialStation.",
+    "Calcolo dello spazio su disco disponibile."
+  ],
+  "license_info": "Distribuito sotto Licenza GPLv3",
+  "repository_label": "Repository Ufficiale",
+  "update_title": "Aggiornamento Software",
+  "update_check_btn": "Controlla Aggiornamenti",
+  "update_checking": "Verifica in corso...",
+  "update_none": "Stai utilizzando l'ultima versione. Nessun aggiornamento disponibile.",
+  "update_error": "Impossibile verificare gli aggiornamenti. Riprova più tardi.",
+  "update_available_title": "Aggiornamento Disponibile",
+  "update_downloading": "Download dell'aggiornamento...",
+  "update_install_btn": "Scarica e Installa",
+  "update_later": "Più tardi",
+  "update_relaunch": "Riavvia Ora"
+}
