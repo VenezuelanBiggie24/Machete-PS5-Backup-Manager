@@ -72,7 +72,7 @@ fn save_custom_metadata(app: &tauri::AppHandle, data: &HashMap<String, CustomMet
 #[tauri::command]
 async fn save_custom_title(app: tauri::AppHandle, ppsa: String, title: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let clean_ppsa = ppsa.replace("-", "").replace("_", "").replace(" ", "");
+        let clean_ppsa = ppsa.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
         let mut db = load_custom_metadata(&app)?;
         let entry = db.entry(clean_ppsa).or_default();
         entry.title = Some(title);
@@ -84,7 +84,7 @@ async fn save_custom_title(app: tauri::AppHandle, ppsa: String, title: String) -
 #[tauri::command]
 async fn save_custom_cover(app: tauri::AppHandle, ppsa: String, image_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let clean_ppsa = ppsa.replace("-", "").replace("_", "").replace(" ", "");
+        let clean_ppsa = ppsa.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
         // Read image file and convert to base64
         let mut file = fs::File::open(&image_path).map_err(|e| e.to_string())?;
         let mut buffer = Vec::new();
@@ -116,7 +116,7 @@ async fn save_custom_cover(app: tauri::AppHandle, ppsa: String, image_path: Stri
 
 #[tauri::command]
 async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<MetadataInfo, String> {
-    let clean_ppsa = ppsa.replace("-", "").replace("_", "").replace(" ", "");
+    let clean_ppsa = ppsa.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
     
     // Check local database first
     let db = load_custom_metadata(&app).unwrap_or_default();
@@ -266,11 +266,14 @@ fn calculate_dir_size(path: &std::path::Path) -> u64 {
     let mut size = 0;
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_dir() {
+            if let Ok(file_type) = entry.file_type() {
+                if file_type.is_symlink() {
+                    continue; // Skip symlinks to avoid circular recursion loops
+                }
+                if file_type.is_dir() {
                     size += calculate_dir_size(&entry.path());
-                } else {
-                    size += metadata.len();
+                } else if let Ok(meta) = entry.metadata() {
+                    size += meta.len();
                 }
             }
         }
@@ -293,35 +296,34 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
 
         let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
         
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path_buf = entry.path();
-                if let Some(file_name) = path_buf.file_name().and_then(|n| n.to_str()) {
-                    if file_name.starts_with('.') {
-                        continue;
-                    }
-                    
-                    let mut ppsa = None;
-                    if let Some(mat) = re.find(file_name) {
-                        let cleaned_ppsa = mat.as_str().to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
-                        ppsa = Some(cleaned_ppsa);
-                    }
-                    
-                    let mut size_bytes = 0;
-                    if !path_buf.is_dir() {
-                        if let Ok(metadata) = fs::metadata(&path_buf) {
-                            size_bytes = metadata.len();
-                        }
-                    }
-                    
-                    files.push(FileItem {
-                        name: file_name.to_string(),
-                        path: path_buf.to_string_lossy().to_string(),
-                        ppsa,
-                        size_bytes,
-                        is_dir: path_buf.is_dir(),
-                    });
+        for entry in entries.flatten() {
+            let path_buf = entry.path();
+            if let Some(file_name) = path_buf.file_name().and_then(|n| n.to_str()) {
+                if file_name.starts_with('.') {
+                    continue;
                 }
+                
+                let mut ppsa = None;
+                if let Some(mat) = re.find(file_name) {
+                    let cleaned_ppsa = mat.as_str().to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
+                    ppsa = Some(cleaned_ppsa);
+                }
+                
+                let mut size_bytes = 0;
+                let is_dir = path_buf.is_dir();
+                if !is_dir {
+                    if let Ok(metadata) = fs::metadata(&path_buf) {
+                        size_bytes = metadata.len();
+                    }
+                }
+                
+                files.push(FileItem {
+                    name: file_name.to_string(),
+                    path: path_buf.to_string_lossy().to_string(),
+                    ppsa,
+                    size_bytes,
+                    is_dir,
+                });
             }
         }
         
@@ -333,17 +335,17 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
 async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let disks = Disks::new_with_refreshed_list();
-        let path = Path::new(&path);
+        let raw_path = PathBuf::from(&path);
+        let target_path = raw_path.canonicalize().unwrap_or(raw_path);
         
         let mut best_match: Option<&sysinfo::Disk> = None;
         let mut longest_prefix = 0;
 
         for disk in disks.iter() {
             let mount = disk.mount_point();
-            let path_str = path.to_string_lossy().to_lowercase();
-            let mount_str = mount.to_string_lossy().to_lowercase();
-            if path_str.starts_with(&mount_str) {
-                let prefix_len = mount.components().count();
+            let canonical_mount = mount.canonicalize().unwrap_or_else(|_| mount.to_path_buf());
+            if target_path.starts_with(&canonical_mount) {
+                let prefix_len = canonical_mount.components().count();
                 if prefix_len > longest_prefix {
                     longest_prefix = prefix_len;
                     best_match = Some(disk);
@@ -366,6 +368,12 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
 async fn delete_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path_buf = Path::new(&path);
+        if path.trim().is_empty() || path_buf.parent().is_none() || path == "/" || path == "\\" {
+            return Err("Invalid or protected root path provided for deletion".into());
+        }
+        if !path_buf.exists() {
+            return Err("Path does not exist".into());
+        }
         if path_buf.is_dir() {
             fs::remove_dir_all(path_buf).map_err(|e| e.to_string())
         } else {
@@ -474,8 +482,20 @@ pub fn run() {
                     .item(&PredefinedMenuItem::quit(app, None)?)
                     .build()?;
 
+                // Standard Edit submenu restores Cmd+C, Cmd+V, Cmd+A, Cmd+Z in macOS WebViews
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .item(&PredefinedMenuItem::undo(app, None)?)
+                    .item(&PredefinedMenuItem::redo(app, None)?)
+                    .separator()
+                    .item(&PredefinedMenuItem::cut(app, None)?)
+                    .item(&PredefinedMenuItem::copy(app, None)?)
+                    .item(&PredefinedMenuItem::paste(app, None)?)
+                    .item(&PredefinedMenuItem::select_all(app, None)?)
+                    .build()?;
+
                 let menu = MenuBuilder::new(app)
                     .item(&app_submenu)
+                    .item(&edit_submenu)
                     .build()?;
 
                 app.set_menu(menu)?;

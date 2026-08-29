@@ -260,20 +260,27 @@ export default function App() {
     currentDirRef.current = currentDir;
   }, [currentDir]);
   useEffect(() => {
-    const unlistenDrop = listen('tauri://file-drop', async (event) => {
-      const payload = event.payload as string[];
-      if (payload && payload.length > 0) {
+    document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+  }, []);
+
+  useEffect(() => {
+    const handleDragDrop = (event: any) => {
+      const paths: string[] = Array.isArray(event.payload)
+        ? event.payload
+        : event.payload?.paths || [];
+      if (paths && paths.length > 0) {
         if (currentDirRef.current) {
-          startTransfer(payload);
+          startTransfer(paths);
         } else {
-          const firstPath = payload[0];
+          const firstPath = paths[0];
           setCurrentDir(firstPath);
           loadDirectory(firstPath);
         }
       }
-    });
+    };
 
-    
+    const unlistenDropLegacy = listen('tauri://file-drop', handleDragDrop);
+    const unlistenDragDrop = listen('tauri://drag-drop', handleDragDrop);
 
     const unlistenAbout = listen('menu-open-about', () => {
       setShowAbout(true);
@@ -284,7 +291,8 @@ export default function App() {
     });
 
     return () => {
-      unlistenDrop.then(f => f()).catch(console.error);
+      unlistenDropLegacy.then(f => f()).catch(console.error);
+      unlistenDragDrop.then(f => f()).catch(console.error);
       unlistenAbout.then(f => f()).catch(console.error);
       unlistenCheckUpdate.then(f => f()).catch(console.error);
     };
@@ -292,6 +300,10 @@ export default function App() {
 
   const handleChangeLanguage = (lang: string) => {
     i18n.changeLanguage(lang);
+    try {
+      localStorage.setItem('machete_lang', lang);
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    } catch (_) {}
   };
 
   const handleDelete = async (filePath: string) => {
@@ -533,7 +545,7 @@ export default function App() {
         <div className="px-6 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30 backdrop-blur-md sticky top-0 z-20">
           <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
             <Settings className="w-4 h-4 text-cyan-500" />
-            {currentDir ? currentDir.split('/').pop() || currentDir : t("drag_drop")}
+            {currentDir ? currentDir.split(/[/\\]/).pop() || currentDir : t("drag_drop")}
           </h2>
           <span className="text-xs text-slate-500 font-mono bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
             {files.length} ITEMS • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
