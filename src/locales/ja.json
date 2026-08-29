@@ -53,5 +53,23 @@
   "changelog_v124_items": [
     "Corregido error de '0 GB' en el peso de carpetas.",
     "Añadido cálculo total de GB en la barra superior."
+  ],
+  "update_title": "ソフトウェアアップデート",
+  "update_check_btn": "アップデートを確認",
+  "update_checking": "確認中...",
+  "update_none": "最新バージョンです。利用可能なアップデートはありません。",
+  "update_error": "アップデートを確認できませんでした。後でもう一度お試しください。",
+  "update_available_title": "アップデート利用可能",
+  "update_downloading": "アップデートをダウンロード中...",
+  "update_install_btn": "ダウンロードしてインストール",
+  "update_later": "後で",
+  "update_relaunch": "今すぐ再起動",
+  "changelog_v125_title": "v1.2.5 - Auto-Updater",
+  "changelog_v125_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "All updater UI fully translated to 12 languages."
   ]
 }
