@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, HardDrive, Trash2, Settings, Globe, Info, DownloadCloud, RefreshCw, Edit2, Image as ImageIcon, ExternalLink, Activity, ArrowUpCircle, X } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
+import { GameCard } from './components/GameCard';
+import { HolographicDisk } from './components/HolographicDisk';
+import { HackerConsole } from './components/HackerConsole';
+import { playScanSound, playSuccessSound, playSelectSound, playCancelSound, playMacheteSound } from './utils/audio';
 import i18n from './i18n';
 import logoUrl from './assets/logo.jpg';
 import { message, confirm, open } from '@tauri-apps/plugin-dialog';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { playScanSound, playSuccessSound, playHoverSound, playSelectSound, playCancelSound, playMacheteSound } from './utils/audio';
 import { getVersion } from '@tauri-apps/api/app';
 
 interface FileItem {
@@ -31,14 +34,7 @@ interface DiskInfo {
   free: number;
 }
 
-function formatBytes(bytes: number, decimals = 2) {
-  if (!+bytes) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-}
+
 
 const TransferProgressModal = ({ active }: { active: boolean }) => {
   const [progress, setProgress] = useState<{
@@ -110,6 +106,16 @@ const TransferProgressModal = ({ active }: { active: boolean }) => {
   );
 };
 
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
 export default function App() {
   const { t } = useTranslation();
   const [currentDir, setCurrentDir] = useState<string | null>(null);
@@ -119,6 +125,8 @@ export default function App() {
   const [metadata, setMetadata] = useState<Record<string, MetadataInfo>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [transferActive, setTransferActive] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const addLog = (msg: string) => setLogs(p => [...p, msg].slice(-50));
   const [showAbout, setShowAbout] = useState(false);
   const [diskInfo, setDiskInfo] = useState<DiskInfo | null>(null);
 
@@ -166,6 +174,8 @@ export default function App() {
       message("Error transfering files: " + String(e), { title: "Error", kind: 'error' });
     } finally {
       setTransferActive(false);
+      playSuccessSound();
+      addLog(`[SUCCESS] Transfer completed`);
     }
   };
 
@@ -202,7 +212,8 @@ export default function App() {
 
   const loadDirectory = async (dir: string) => {
     setIsLoading(true);
-    playScanSound();
+      playScanSound();
+      addLog(`[INFO] Scanning directory: ${dir}`);
     try {
       const result = await invoke<FileItem[]>('read_directory', { path: dir });
       setFiles(result);
@@ -261,6 +272,10 @@ export default function App() {
   }, [currentDir]);
   useEffect(() => {
     document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
+    const timer = setTimeout(() => {
+      checkForUpdates(true);
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -317,6 +332,7 @@ export default function App() {
         await invoke('delete_file', { path: filePath });
         setFiles(prev => prev.filter(f => f.path !== filePath));
         playMacheteSound();
+        addLog(`[MACHETE] Deleted item: ${filePath}`);
 
         // Automatically update disk space after deleting!
         const activeDir = currentDirRef.current || currentDir;
@@ -324,6 +340,7 @@ export default function App() {
           try {
             const disk = await invoke<DiskInfo>('get_disk_space', { path: activeDir });
             setDiskInfo(disk);
+            addLog(`[DISK] Refreshed capacity: ${(disk.free / (1024 * 1024 * 1024)).toFixed(2)} GB free`);
           } catch (err) {
             console.error("Could not refresh disk space after delete", err);
           }
@@ -356,6 +373,7 @@ export default function App() {
         const base64Cover = await invoke<string>("save_custom_cover", { ppsa, imagePath: selected });
         setMetadata(prev => ({ ...prev, [ppsa]: { ...prev[ppsa], cover: base64Cover } }));
         playSuccessSound();
+        addLog(`[METADATA] Saved custom cover for ${ppsa}`);
       } catch (e) {
         console.error(e);
       }
@@ -377,6 +395,7 @@ export default function App() {
           [renameData.ppsa]: { ...prev[renameData.ppsa], title: renameInput.trim() }
         }));
         playSuccessSound();
+        addLog(`[METADATA] Saved custom title for ${renameData.ppsa}`);
       } catch (e) {
         console.error(e);
       }
@@ -384,17 +403,30 @@ export default function App() {
     setRenameData(null);
   };
 
-  const checkForUpdates = async () => {
+  const checkForUpdates = async (silent = false) => {
     setUpdateChecking(true);
     try {
       const update = await check();
       if (update?.available) {
         setUpdateAvailable({ version: update.version, body: update.body || "" });
       } else {
-        await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        if (!silent) {
+          await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        }
       }
-    } catch (e) {
-      await message(t("update_error"), { title: "Error", kind: "error" });
+    } catch (e: any) {
+      console.warn("Update check error:", e);
+      const errStr = String(e || "");
+      // If endpoint returns 404 / Not Found, it means no newer release manifest is published yet
+      if (errStr.includes("404") || errStr.toLowerCase().includes("not found") || errStr.toLowerCase().includes("no update")) {
+        if (!silent) {
+          await message(t("update_none"), { title: t("update_title"), kind: "info" });
+        }
+      } else {
+        if (!silent) {
+          await message(t("update_error"), { title: "Error", kind: "error" });
+        }
+      }
     } finally {
       setUpdateChecking(false);
     }
@@ -435,6 +467,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen p-6 font-sans flex flex-col relative selection:bg-cyan-500/30">
+      <div className="crt-overlay fixed inset-0"></div>
       <TransferProgressModal active={transferActive} />
       {/* Background decoration */}
       <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
@@ -514,30 +547,18 @@ export default function App() {
       </div>
 
       {/* Disk Info Bar */}
-      {diskInfo && (
-        <div className="mb-6 glass-panel rounded-xl p-4 flex items-center justify-between border border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-              <HardDrive className="w-5 h-5 text-blue-400" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t("free_space")}</div>
-              <div className="font-mono text-lg text-slate-200">
-                {formatBytes(diskInfo.free)} <span className="text-slate-500 text-sm">/ {formatBytes(diskInfo.total)}</span>
-              </div>
-            </div>
-          </div>
-          {currentDir && (
+      <div className="mb-6 flex justify-between items-center z-10">
+        <HolographicDisk diskInfo={diskInfo} t={t} />
+        {currentDir && (
             <button 
               onClick={handleRefresh}
-              className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors flex items-center gap-2 text-sm"
+              className="p-3 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
               title="Recargar Directorio"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-5 h-5" />
             </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 relative rounded-2xl overflow-hidden glass-panel border border-slate-800/50 mb-6 flex flex-col">
@@ -545,7 +566,7 @@ export default function App() {
         <div className="px-6 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30 backdrop-blur-md sticky top-0 z-20">
           <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
             <Settings className="w-4 h-4 text-cyan-500" />
-            {currentDir ? currentDir.split(/[/\\]/).pop() || currentDir : t("drag_drop")}
+            {currentDir ? currentDir.split('/').pop() || currentDir : t("drag_drop")}
           </h2>
           <span className="text-xs text-slate-500 font-mono bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
             {files.length} ITEMS • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
@@ -563,69 +584,16 @@ export default function App() {
           <AnimatePresence>
             {files.map((file) => {
               const meta = file.ppsa ? metadata[file.ppsa] : null;
-              
               return (
-                <motion.div 
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
+                <GameCard 
                   key={file.path} 
-                  onMouseEnter={playHoverSound}
-                  className="glass-panel rounded-xl overflow-hidden flex flex-col group border border-slate-700 hover:border-cyan-500/50 transition-colors"
-                >
-                  <div className="aspect-[3/4] bg-slate-900 relative">
-                    {meta?.cover ? (
-                      <img src={meta.cover} alt="cover" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center p-4 text-center">
-                        <span className="text-slate-500 font-mono text-xs">{file.name}</span>
-                      </div>
-                    )}
-                    
-                    {/* Hover Overlay Actions */}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 backdrop-blur-[2px]">
-                      {file.ppsa && (
-                        <>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); openRenameModal(file.ppsa!, meta?.title || file.name); }}
-                            className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-600 transition-all shadow-lg"
-                          >
-                            <Edit2 className="w-3 h-3" /> {t("edit_title")}
-                          </button>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleChangeCover(file.ppsa!); }}
-                            className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-600 transition-all shadow-lg"
-                          >
-                            <ImageIcon className="w-3 h-3" /> {t("change_cover")}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    
-                    {file.ppsa && (
-                      <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-mono text-cyan-400 border border-cyan-500/30 backdrop-blur-md pointer-events-none z-10">
-                        {file.ppsa}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3 flex-1 flex flex-col">
-                    <h3 className="text-sm font-semibold truncate" title={meta?.title || file.name}>
-                      {meta?.region_flag && <span className="mr-1">{meta.region_flag}</span>}
-                      {meta?.title || file.name}
-                    </h3>
-                    <div className="text-xs text-slate-400 mt-1 font-mono">
-                      {file.size_bytes ? formatBytes(file.size_bytes, 1) : "0 GB"}
-                    </div>
-                    <button 
-                      onClick={() => handleDelete(file.path)}
-                      className="mt-auto pt-3 flex items-center justify-center gap-2 text-red-500 hover:text-red-400 text-sm font-bold transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      {t("machetear")}
-                    </button>
-                  </div>
-                </motion.div>
+                  file={file} 
+                  meta={meta} 
+                  t={t} 
+                  onDelete={handleDelete} 
+                  onRename={(ppsa: string, defaultTitle: string) => openRenameModal(ppsa, defaultTitle)} 
+                  onChangeCover={handleChangeCover} 
+                />
               );
             })}
           </AnimatePresence>
@@ -719,7 +687,7 @@ export default function App() {
                 </div>
               </div>
               <button 
-                onClick={checkForUpdates}
+                onClick={() => checkForUpdates(false)}
                 disabled={updateChecking}
                 className="flex items-center gap-2 w-full mt-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-all bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/50 disabled:opacity-50 disabled:cursor-wait"
               >
@@ -750,15 +718,21 @@ export default function App() {
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">{t("changelog_title")}</h3>
               <div className="bg-black/50 rounded-lg p-3 h-40 overflow-y-auto text-xs text-slate-300 space-y-3 font-mono border border-cyan-500/10 custom-scrollbar">
                 <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v125_title")}</div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v202_title")}</div>
                   <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v125_items", { returnObjects: true }))}
+                    {renderChangelogItems(t("changelog_v202_items", { returnObjects: true }))}
                   </ul>
                 </div>
                 <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v124_title")}</div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v200_title")}</div>
                   <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v124_items", { returnObjects: true }))}
+                    {renderChangelogItems(t("changelog_v200_items", { returnObjects: true }))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-cyan-300 font-bold">{t("changelog_v123_title")}</div>
+                  <ul className="list-disc pl-4 mt-1 opacity-80">
+                    {renderChangelogItems(t("changelog_v123_items", { returnObjects: true }))}
                   </ul>
                 </div>
                 <div>
@@ -883,6 +857,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      <HackerConsole logs={logs} />
     </div>
   );
 }
