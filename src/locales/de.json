@@ -53,5 +53,23 @@
   "changelog_v124_items": [
     "Corregido error de '0 GB' en el peso de carpetas.",
     "Añadido cálculo total de GB en la barra superior."
+  ],
+  "update_title": "Software-Update",
+  "update_check_btn": "Nach Updates suchen",
+  "update_checking": "Überprüfung...",
+  "update_none": "Sie verwenden die neueste Version. Keine Updates verfügbar.",
+  "update_error": "Updates konnten nicht überprüft werden. Versuchen Sie es später erneut.",
+  "update_available_title": "Update verfügbar",
+  "update_downloading": "Update wird heruntergeladen...",
+  "update_install_btn": "Herunterladen & Installieren",
+  "update_later": "Später",
+  "update_relaunch": "Jetzt neu starten",
+  "changelog_v125_title": "v1.2.5 - Auto-Updater",
+  "changelog_v125_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "All updater UI fully translated to 12 languages."
   ]
 }

@@ -53,5 +53,23 @@
   "changelog_v124_items": [
     "Corregido error de '0 GB' en el peso de carpetas.",
     "Añadido cálculo total de GB en la barra superior."
+  ],
+  "update_title": "软件更新",
+  "update_check_btn": "检查更新",
+  "update_checking": "检查中...",
+  "update_none": "您正在运行最新版本。没有可用的更新。",
+  "update_error": "无法检查更新。请稍后重试。",
+  "update_available_title": "有可用更新",
+  "update_downloading": "正在下载更新...",
+  "update_install_btn": "下载并安装",
+  "update_later": "稍后",
+  "update_relaunch": "立即重启",
+  "changelog_v125_title": "v1.2.5 - Auto-Updater",
+  "changelog_v125_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "All updater UI fully translated to 12 languages."
   ]
 }
