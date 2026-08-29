@@ -9,6 +9,7 @@ import logoUrl from './assets/logo.jpg';
 import { message, confirm, open } from '@tauri-apps/plugin-dialog';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { playScanSound, playSuccessSound, playHoverSound, playSelectSound, playCancelSound, playMacheteSound } from './utils/audio';
 import { getVersion } from '@tauri-apps/api/app';
 
 interface FileItem {
@@ -201,6 +202,7 @@ export default function App() {
 
   const loadDirectory = async (dir: string) => {
     setIsLoading(true);
+    playScanSound();
     try {
       const result = await invoke<FileItem[]>('read_directory', { path: dir });
       setFiles(result);
@@ -302,20 +304,36 @@ export default function App() {
       try {
         await invoke('delete_file', { path: filePath });
         setFiles(prev => prev.filter(f => f.path !== filePath));
+        playMacheteSound();
+
+        // Automatically update disk space after deleting!
+        const activeDir = currentDirRef.current || currentDir;
+        if (activeDir) {
+          try {
+            const disk = await invoke<DiskInfo>('get_disk_space', { path: activeDir });
+            setDiskInfo(disk);
+          } catch (err) {
+            console.error("Could not refresh disk space after delete", err);
+          }
+        }
       } catch (e) {
         console.error(e);
         await message(t("delete_error"), { title: "Error", kind: "error" });
       }
+    } else {
+      playCancelSound();
     }
   };
 
   const handleRefresh = async () => {
+    playScanSound();
     if (currentDir) {
       await loadDirectory(currentDir);
     }
   };
 
   const handleChangeCover = async (ppsa: string) => {
+    playSelectSound();
     await message(t("cover_dimensions_warning"), { title: t("change_cover"), kind: "info" });
     const selected = await open({
       multiple: false,
@@ -325,6 +343,7 @@ export default function App() {
       try {
         const base64Cover = await invoke<string>("save_custom_cover", { ppsa, imagePath: selected });
         setMetadata(prev => ({ ...prev, [ppsa]: { ...prev[ppsa], cover: base64Cover } }));
+        playSuccessSound();
       } catch (e) {
         console.error(e);
       }
@@ -332,6 +351,7 @@ export default function App() {
   };
 
   const openRenameModal = (ppsa: string, currentTitle: string) => {
+    playSelectSound();
     setRenameInput(currentTitle);
     setRenameData({ ppsa, title: currentTitle });
   };
@@ -344,6 +364,7 @@ export default function App() {
           ...prev,
           [renameData.ppsa]: { ...prev[renameData.ppsa], title: renameInput.trim() }
         }));
+        playSuccessSound();
       } catch (e) {
         console.error(e);
       }
@@ -538,6 +559,7 @@ export default function App() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   key={file.path} 
+                  onMouseEnter={playHoverSound}
                   className="glass-panel rounded-xl overflow-hidden flex flex-col group border border-slate-700 hover:border-cyan-500/50 transition-colors"
                 >
                   <div className="aspect-[3/4] bg-slate-900 relative">
