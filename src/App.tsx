@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
 import { HolographicDisk } from './components/HolographicDisk';
 import { HackerConsole } from './components/HackerConsole';
-import { playScanSound, playSuccessSound } from './utils/audio';
+import { playScanSound, playSuccessSound, playSelectSound, playCancelSound, playMacheteSound } from './utils/audio';
 import i18n from './i18n';
 import logoUrl from './assets/logo.jpg';
 import { message, confirm, open } from '@tauri-apps/plugin-dialog';
@@ -315,20 +315,38 @@ export default function App() {
       try {
         await invoke('delete_file', { path: filePath });
         setFiles(prev => prev.filter(f => f.path !== filePath));
+        playMacheteSound();
+        addLog(`[MACHETE] Deleted item: ${filePath}`);
+
+        // Automatically update disk space after deleting!
+        const activeDir = currentDirRef.current || currentDir;
+        if (activeDir) {
+          try {
+            const disk = await invoke<DiskInfo>('get_disk_space', { path: activeDir });
+            setDiskInfo(disk);
+            addLog(`[DISK] Refreshed capacity: ${(disk.free / (1024 * 1024 * 1024)).toFixed(2)} GB free`);
+          } catch (err) {
+            console.error("Could not refresh disk space after delete", err);
+          }
+        }
       } catch (e) {
         console.error(e);
         await message(t("delete_error"), { title: "Error", kind: "error" });
       }
+    } else {
+      playCancelSound();
     }
   };
 
   const handleRefresh = async () => {
+    playScanSound();
     if (currentDir) {
       await loadDirectory(currentDir);
     }
   };
 
   const handleChangeCover = async (ppsa: string) => {
+    playSelectSound();
     await message(t("cover_dimensions_warning"), { title: t("change_cover"), kind: "info" });
     const selected = await open({
       multiple: false,
@@ -338,6 +356,8 @@ export default function App() {
       try {
         const base64Cover = await invoke<string>("save_custom_cover", { ppsa, imagePath: selected });
         setMetadata(prev => ({ ...prev, [ppsa]: { ...prev[ppsa], cover: base64Cover } }));
+        playSuccessSound();
+        addLog(`[METADATA] Saved custom cover for ${ppsa}`);
       } catch (e) {
         console.error(e);
       }
@@ -345,6 +365,7 @@ export default function App() {
   };
 
   const openRenameModal = (ppsa: string, currentTitle: string) => {
+    playSelectSound();
     setRenameInput(currentTitle);
     setRenameData({ ppsa, title: currentTitle });
   };
@@ -357,6 +378,8 @@ export default function App() {
           ...prev,
           [renameData.ppsa]: { ...prev[renameData.ppsa], title: renameInput.trim() }
         }));
+        playSuccessSound();
+        addLog(`[METADATA] Saved custom title for ${renameData.ppsa}`);
       } catch (e) {
         console.error(e);
       }
