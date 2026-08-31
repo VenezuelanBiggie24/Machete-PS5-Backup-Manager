@@ -23,6 +23,14 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.1.2 - Parche del Motor de Audio y Optimización de Síntesis",
+      "items": [
+        "Resuelta la excepción de curva exponencial con valor cero en WebKit AudioContext.",
+        "Transición a rampas lineales universales seguras para efectos acústicos de PS5 nítidos y de alto volumen.",
+        "Reactivación síncrona inmediata del contexto de audio al pasar el cursor y seleccionar carátulas."
+      ]
+    },
+    {
       "version": "v2.1.1 - Refinamiento de UI, Audio y Menú macOS",
       "items": [
         "Corregido error de sobreposición de encabezado en carátulas para visualización 4K a sangre completa.",

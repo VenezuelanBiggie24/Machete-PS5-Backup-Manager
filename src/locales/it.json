@@ -160,6 +160,14 @@
   ],
   "changelogs": [
     {
+      "version": "v2.1.2 - Audio Engine Hotfix & Synthesis Optimization",
+      "items": [
+        "Resolved WebKit AudioContext zero-value exponential curve exception.",
+        "Switched to universal safe linear ramps for crystal-clear, high-volume PS5 UI sound effects.",
+        "Immediate synchronous audio context reactivation on game card hover and selection."
+      ]
+    },
+    {
       "version": "v2.1.1 - UI Refinement, Audio & macOS Menu",
       "items": [
         "Fixed box art double-header superposition defect for full-bleed 4K master covers.",

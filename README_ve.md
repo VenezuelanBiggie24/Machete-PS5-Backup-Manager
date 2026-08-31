@@ -4,7 +4,7 @@
 
 # Machete PS5 Backup Manager | Administrador de respaldos para PlayStation 5
 
-Presentamos **Machete PS5 Backup Manager v2.1.1**: la herramienta definitiva para catalogar y gestionar respaldos de PS5 en almacenamiento externo de forma visual, rápida y segura.
+Presentamos **Machete PS5 Backup Manager v2.1.2**: la herramienta definitiva para catalogar y gestionar respaldos de PS5 en almacenamiento externo de forma visual, rápida y segura.
 
 ### El problema
 Conectas tu disco externo de varios terabytes y lo que encuentras es una lista ilegible: `PPSA04264.exfat`, `PPSA29343` y carpetas con códigos crípticos. Resulta imposible distinguir a simple vista qué juego es cada archivo, y un error al intentar liberar espacio puede significar borrar 96GB del título equivocado de manera irreversible.

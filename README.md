@@ -11,7 +11,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen)]()
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2%20%2B%20Rust-orange)]()
-[![Version](https://img.shields.io/badge/Version-v2.1.1-blue)]()
+[![Version](https://img.shields.io/badge/Version-v2.1.2-blue)]()
 
 </div>
 
