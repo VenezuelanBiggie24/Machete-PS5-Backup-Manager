@@ -13,6 +13,8 @@ struct FileItem {
     ppsa: Option<String>,
     size_bytes: u64,
     is_dir: bool,
+    local_title: Option<String>,
+    local_icon: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -244,6 +246,16 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
             }
         }
         
+        // 4. Fallback to Retroforge CDN if cover is still missing
+        if final_cover.is_none() {
+            let cdn_url = format!("https://retroforge-cdn.pages.dev/covers/{}.png", clean_ppsa);
+            if let Ok(head_res) = client.head(&cdn_url).send() {
+                if head_res.status().is_success() {
+                    final_cover = Some(cdn_url);
+                }
+            }
+        }
+        
         // Apply manual overrides if they exist
         if let Some(custom) = custom_entry {
             if let Some(t) = custom.title {
@@ -288,11 +300,96 @@ async fn get_folder_size(path: String) -> Result<u64, String> {
     }).await.map_err(|e| e.to_string())
 }
 
+fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<String>) {
+    let mut ppsa = None;
+    let mut local_title = None;
+    let mut local_icon = None;
+
+    if path_buf.is_dir() {
+        // 1. Check for sce_sys/param.json or param.json
+        let param_candidates = [
+            path_buf.join("sce_sys").join("param.json"),
+            path_buf.join("param.json"),
+        ];
+
+        for param_path in &param_candidates {
+            if param_path.exists() {
+                if let Ok(content) = fs::read_to_string(param_path) {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(tid) = json.get("titleId").or_else(|| json.get("title_id")).and_then(|v| v.as_str()) {
+                            let clean = tid.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
+                            if clean.starts_with("PPSA") {
+                                ppsa = Some(clean);
+                            }
+                        }
+                        if let Some(tname) = json.get("titleName")
+                            .or_else(|| json.get("title_name"))
+                            .or_else(|| json.get("defaultLanguageTitle"))
+                            .and_then(|v| v.as_str()) {
+                            local_title = Some(tname.to_string());
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        // 2. Check for sce_sys/icon0.png or icon0.png
+        let icon_candidates = [
+            path_buf.join("sce_sys").join("icon0.png"),
+            path_buf.join("icon0.png"),
+        ];
+
+        for icon_path in &icon_candidates {
+            if icon_path.exists() {
+                if let Ok(mut f) = fs::File::open(icon_path) {
+                    let mut buf = Vec::new();
+                    if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() && buf.len() <= 5 * 1024 * 1024 {
+                        local_icon = Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(&buf)));
+                    }
+                }
+                break;
+            }
+        }
+    } else {
+        // For PS5 container files (.ffpfsc, .exfat, .img, .bin, .dump)
+        let ext = path_buf.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if matches!(ext.as_str(), "ffpfsc" | "exfat" | "img" | "bin" | "dump" | "raw") {
+            if let Ok(mut file) = fs::File::open(path_buf) {
+                let mut buffer = vec![0u8; 8 * 1024 * 1024]; // Read 8MB header
+                if let Ok(bytes_read) = file.read(&mut buffer) {
+                    let slice = &buffer[..bytes_read];
+                    if let Ok(re_id) = regex::bytes::Regex::new(r#"(?i)"titleId"\s*:\s*"(PPSA\d{5})""#) {
+                        if let Some(caps) = re_id.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    ppsa = Some(s.to_uppercase().replace("-", "").replace("_", "").replace(" ", ""));
+                                }
+                            }
+                        }
+                    }
+                    if let Ok(re_name) = regex::bytes::Regex::new(r#"(?i)"titleName"\s*:\s*"([^"]+)""#) {
+                        if let Some(caps) = re_name.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    local_title = Some(s.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (ppsa, local_title, local_icon)
+}
+
 #[tauri::command]
 async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut files = Vec::new();
-        let re = Regex::new(r"(?i)PPSA[-_ ]?\d{5}").unwrap();
+        let re_filename = Regex::new(r"(?i)PPSA[-_ ]?\d{5}").unwrap();
 
         let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
         
@@ -303,11 +400,15 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     continue;
                 }
                 
-                let mut ppsa = None;
-                if let Some(mat) = re.find(file_name) {
-                    let cleaned_ppsa = mat.as_str().to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
-                    ppsa = Some(cleaned_ppsa);
-                }
+                // 1. Inspect PS5 structure (sce_sys/param.json, containers)
+                let (inspected_ppsa, local_title, local_icon) = inspect_ps5_item(&path_buf);
+                
+                // 2. Fallback to filename regex if PPSA wasn't inside the container
+                let ppsa = inspected_ppsa.or_else(|| {
+                    re_filename.find(file_name).map(|mat| {
+                        mat.as_str().to_uppercase().replace("-", "").replace("_", "").replace(" ", "")
+                    })
+                });
                 
                 let mut size_bytes = 0;
                 let is_dir = path_buf.is_dir();
@@ -323,6 +424,8 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     ppsa,
                     size_bytes,
                     is_dir,
+                    local_title,
+                    local_icon,
                 });
             }
         }

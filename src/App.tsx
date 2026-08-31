@@ -21,6 +21,8 @@ interface FileItem {
   ppsa?: string;
   size_bytes?: number;
   is_dir?: boolean;
+  local_title?: string;
+  local_icon?: string;
 }
 
 interface MetadataInfo {
@@ -218,6 +220,18 @@ export default function App() {
       const result = await invoke<FileItem[]>('read_directory', { path: dir });
       setFiles(result);
       
+      // 1. Instant Offline Seed: display local title and icon immediately
+      const initialMeta: Record<string, MetadataInfo> = {};
+      result.forEach(f => {
+        if (f.ppsa) {
+          initialMeta[f.ppsa] = {
+            title: f.local_title || f.name,
+            cover: f.local_icon,
+          };
+        }
+      });
+      setMetadata(prev => ({ ...initialMeta, ...prev }));
+      
       // Async folder size fetch
       result.forEach(async (file) => {
         if (file.is_dir) {
@@ -230,7 +244,6 @@ export default function App() {
         }
       });
 
-      
       try {
         const disk = await invoke<DiskInfo>('get_disk_space', { path: dir });
         setDiskInfo(disk);
@@ -238,6 +251,7 @@ export default function App() {
         console.error("Could not get disk space", e);
       }
 
+      // 2. Asynchronously fetch high-resolution vertical covers from CDN / SerialStation
       const ppsas = result.filter(f => f.ppsa).map(f => f.ppsa!);
       const uniquePpsas = [...new Set(ppsas)];
       
@@ -254,7 +268,13 @@ export default function App() {
       const metaResults = await Promise.all(metaPromises);
       const newMeta: Record<string, MetadataInfo> = {};
       metaResults.forEach(r => {
-        if (r.meta) newMeta[r.ppsa] = r.meta;
+        if (r.meta) {
+          // If online cover found, upgrade to it; otherwise retain local icon fallback
+          newMeta[r.ppsa] = {
+            ...r.meta,
+            cover: r.meta.cover || initialMeta[r.ppsa]?.cover,
+          };
+        }
       });
       
       setMetadata(prev => ({ ...prev, ...newMeta }));
