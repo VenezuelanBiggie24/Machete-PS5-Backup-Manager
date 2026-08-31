@@ -14,19 +14,42 @@ export const setAudioMuted = (muted: boolean) => {
 };
 
 // PlayStation Legacy & PS5 UI Sound Engine (Synthesized via Web Audio API)
-const getAudioContext = (() => {
-  let ctx: AudioContext | null = null;
-  return () => {
-    if (!ctx) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      ctx = new AudioContextClass();
-    }
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-    return ctx;
+let sharedAudioCtx: AudioContext | null = null;
+
+const getAudioContext = (): AudioContext => {
+  if (!sharedAudioCtx) {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    sharedAudioCtx = new AudioContextClass();
+  }
+  if (sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+  return sharedAudioCtx;
+};
+
+// Automatic WebKit / Safari User Interaction Audio Unlocker
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    try {
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          window.removeEventListener('pointerdown', unlockAudio);
+          window.removeEventListener('click', unlockAudio);
+          window.removeEventListener('keydown', unlockAudio);
+        }).catch(() => {});
+      } else {
+        window.removeEventListener('pointerdown', unlockAudio);
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+      }
+    } catch (_) {}
   };
-})();
+
+  window.addEventListener('pointerdown', unlockAudio, { passive: true });
+  window.addEventListener('click', unlockAudio, { passive: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true });
+}
 
 // Pre-allocated white noise buffer for blade/machete sound to avoid memory allocations
 let cachedNoiseBuffer: AudioBuffer | null = null;
@@ -44,19 +67,19 @@ const getNoiseBuffer = (ctx: AudioContext): AudioBuffer => {
 
 let lastHoverTime = 0;
 let hoverPitchIndex = 0;
-const HOVER_PITCHES = [560, 580, 600, 620, 640, 600, 580];
+const HOVER_PITCHES = [587.33, 659.25, 739.99, 880.00, 987.77, 880.00, 739.99]; // Pentatonic D major sweep
 
 export const playHoverSound = () => {
   try {
     if (isMuted) return;
     const nowMs = performance.now();
-    if (nowMs - lastHoverTime < 38) return; // 38ms silky throttle
+    if (nowMs - lastHoverTime < 45) return; // 45ms silky throttle for smooth card sweeping
     lastHoverTime = nowMs;
 
     const ctx = getAudioContext();
     const now = ctx.currentTime;
     
-    // Slight pitch variation during sweeps for organic tactile feel
+    // Organic tactile pitch sweep across game boxes
     hoverPitchIndex = (hoverPitchIndex + 1) % HOVER_PITCHES.length;
     const baseFreq = HOVER_PITCHES[hoverPitchIndex];
 
@@ -66,20 +89,21 @@ export const playHoverSound = () => {
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(180, now + 0.04);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, now + 0.05);
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1800, now);
+    filter.frequency.setValueAtTime(2800, now);
 
-    gain.gain.setValueAtTime(0.04, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.14, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.045);
+    osc.stop(now + 0.06);
 
     osc.onended = () => {
       osc.disconnect();
@@ -104,16 +128,16 @@ export const playPS5GameSelectSound = () => {
     const subOsc = ctx.createOscillator();
     const subGain = ctx.createGain();
     subOsc.type = 'sine';
-    subOsc.frequency.setValueAtTime(110, now);
-    subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.18);
+    subOsc.frequency.setValueAtTime(120, now);
+    subOsc.frequency.exponentialRampToValueAtTime(38, now + 0.22);
 
-    subGain.gain.setValueAtTime(0.06, now);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    subGain.gain.setValueAtTime(0.18, now);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
 
     subOsc.connect(subGain);
     subGain.connect(ctx.destination);
     subOsc.start(now);
-    subOsc.stop(now + 0.2);
+    subOsc.stop(now + 0.25);
 
     subOsc.onended = () => {
       subOsc.disconnect();
@@ -127,20 +151,20 @@ export const playPS5GameSelectSound = () => {
     const noiseGain = ctx.createGain();
 
     noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.setValueAtTime(600, now);
-    noiseFilter.frequency.exponentialRampToValueAtTime(2400, now + 0.14);
-    noiseFilter.Q.setValueAtTime(3.0, now);
+    noiseFilter.frequency.setValueAtTime(700, now);
+    noiseFilter.frequency.exponentialRampToValueAtTime(2600, now + 0.16);
+    noiseFilter.Q.setValueAtTime(2.5, now);
 
     noiseGain.gain.setValueAtTime(0, now);
-    noiseGain.gain.linearRampToValueAtTime(0.025, now + 0.05);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    noiseGain.gain.linearRampToValueAtTime(0.08, now + 0.06);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
 
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
     noiseGain.connect(ctx.destination);
 
     noise.start(now);
-    noise.stop(now + 0.25);
+    noise.stop(now + 0.28);
 
     noise.onended = () => {
       try {
@@ -152,10 +176,10 @@ export const playPS5GameSelectSound = () => {
 
     // 3. Iconic PlayStation 5 Crystal Harmonic Chimes (Ethereal Chord: D5, A5, F#6, D7)
     const ps5Harmonics = [
-      { freq: 587.33, vol: 0.04, delay: 0.00, dur: 0.45 }, // D5 (Fundamental base)
-      { freq: 880.00, vol: 0.05, delay: 0.02, dur: 0.55 }, // A5 (Fifth resonance)
-      { freq: 1479.98, vol: 0.035, delay: 0.04, dur: 0.60 }, // F#6 (Major third shimmer)
-      { freq: 2349.32, vol: 0.02, delay: 0.06, dur: 0.70 }, // D7 (Crystal sparkle)
+      { freq: 587.33, vol: 0.15, delay: 0.00, dur: 0.50 }, // D5 (Fundamental base)
+      { freq: 880.00, vol: 0.16, delay: 0.02, dur: 0.60 }, // A5 (Fifth resonance)
+      { freq: 1479.98, vol: 0.12, delay: 0.04, dur: 0.65 }, // F#6 (Major third shimmer)
+      { freq: 2349.32, vol: 0.08, delay: 0.06, dur: 0.75 }, // D7 (Crystal sparkle)
     ];
 
     ps5Harmonics.forEach(({ freq, vol, delay, dur }) => {
@@ -170,7 +194,7 @@ export const playPS5GameSelectSound = () => {
       osc.frequency.linearRampToValueAtTime(freq + 4, startTime + dur);
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(3200, startTime);
+      filter.frequency.setValueAtTime(3600, startTime);
 
       gain.gain.setValueAtTime(0, startTime);
       gain.gain.linearRampToValueAtTime(vol, startTime + 0.025);
@@ -223,9 +247,9 @@ export const playSelectSound = () => {
       };
     };
 
-    playHarmonic(880, 0.05, 0.22);    // A5
-    playHarmonic(1318.5, 0.035, 0.3);  // E6
-    playHarmonic(1760, 0.015, 0.35);   // A6
+    playHarmonic(880, 0.16, 0.25);    // A5
+    playHarmonic(1318.5, 0.12, 0.32); // E6
+    playHarmonic(1760, 0.06, 0.38);   // A6
   } catch (_) {}
 };
 

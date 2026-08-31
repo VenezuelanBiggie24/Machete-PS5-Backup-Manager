@@ -62,8 +62,10 @@ export function GameCard({
   const handleCardClick = (e: React.MouseEvent) => {
     if (e.metaKey || e.ctrlKey) {
       e.stopPropagation();
+      playSelectSound();
       onToggleSelect?.(file.path);
     } else {
+      playPS5GameSelectSound();
       onOpenDetails?.(file);
     }
   };
