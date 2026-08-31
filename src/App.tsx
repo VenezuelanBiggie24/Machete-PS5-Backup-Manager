@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01 } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01, PieChart, CheckSquare, Square, Trash2, Send, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
 import { HolographicDisk } from './components/HolographicDisk';
 import { HackerConsole } from './components/HackerConsole';
-import { playScanSound, playSuccessSound, playSelectSound, playCancelSound, playMacheteSound } from './utils/audio';
+import { GameDetailsModal } from './components/GameDetailsModal';
+import { StorageAnalyzerModal } from './components/StorageAnalyzerModal';
+import { SettingsModal } from './components/SettingsModal';
+import { playScanSound, playSuccessSound, playSelectSound, playCancelSound, playMacheteSound, playHoverSound, playPS5GameSelectSound, isAudioMuted, setAudioMuted } from './utils/audio';
 import i18n from './i18n';
 import logoUrl from './assets/logo.jpg';
 import { message, confirm, open } from '@tauri-apps/plugin-dialog';
@@ -23,6 +26,12 @@ interface FileItem {
   is_dir?: boolean;
   local_title?: string;
   local_icon?: string;
+  app_ver?: string;
+  sdk_ver?: string;
+  min_firmware?: string;
+  content_id?: string;
+  category?: string;
+  has_local_icon?: boolean;
 }
 
 interface MetadataInfo {
@@ -144,10 +153,129 @@ export default function App() {
   const [updateProgress, setUpdateProgress] = useState(0);
   const [updateDone, setUpdateDone] = useState(false);
 
+  // Visual Effects & Settings Modal States (Enabled by default)
+  const [visualEffects, setVisualEffects] = useState<boolean>(() => {
+    return localStorage.getItem('machete_visual_effects') !== 'false';
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  const handleToggleVisualEffects = (val: boolean) => {
+    setVisualEffects(val);
+    try {
+      localStorage.setItem('machete_visual_effects', String(val));
+    } catch (_) {}
+  };
+
+  // Audio Mute State
+  const [muted, setMuted] = useState(isAudioMuted());
+
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    setAudioMuted(next);
+    if (!next) {
+      playSelectSound();
+    }
+  };
+
   // Search, filter & sorting states
   const [searchTerm, setSearchTerm] = useState("");
   const [regionFilter, setRegionFilter] = useState<'ALL' | 'US' | 'EU' | 'JP' | 'OTHER'>('ALL');
   const [sortBy, setSortBy] = useState<'NAME' | 'SIZE_DESC' | 'SIZE_ASC'>('NAME');
+
+  // Inspector & Storage modal states
+  const [inspectingGame, setInspectingGame] = useState<FileItem | null>(null);
+  const [showStorageAnalyzer, setShowStorageAnalyzer] = useState(false);
+
+  // Multi-selection states
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+
+  const toggleSelectGame = (path: string) => {
+    setSelectedPaths(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    playSelectSound();
+    setSelectedPaths(new Set(filteredFiles.map(f => f.path)));
+  };
+
+  const clearSelection = () => {
+    playCancelSound();
+    setSelectedPaths(new Set());
+  };
+
+  const selectedFiles = useMemo(() => {
+    return files.filter(f => selectedPaths.has(f.path));
+  }, [files, selectedPaths]);
+
+  const selectedTotalSize = useMemo(() => {
+    return selectedFiles.reduce((acc, f) => acc + (f.size_bytes || 0), 0);
+  }, [selectedFiles]);
+
+  const handleBatchDelete = async () => {
+    if (selectedPaths.size === 0) return;
+    playSelectSound();
+    const confirmed = await confirm(
+      t("batch_delete_confirm_msg", { count: selectedPaths.size, size: formatBytes(selectedTotalSize) }),
+      { title: `${t("batch_delete_confirm_title")} (${selectedPaths.size})`, kind: 'warning' }
+    );
+    if (!confirmed) return;
+
+    for (const path of Array.from(selectedPaths)) {
+      try {
+        await invoke('delete_file', { path });
+      } catch (e) {
+        console.error("Failed to delete", path, e);
+      }
+    }
+    setFiles(prev => prev.filter(f => !selectedPaths.has(f.path)));
+    setSelectedPaths(new Set());
+    playMacheteSound();
+    const activeDir = currentDirRef.current || currentDir;
+    if (activeDir) {
+      try {
+        const disk = await invoke<DiskInfo>('get_disk_space', { path: activeDir });
+        setDiskInfo(disk);
+      } catch (err) {
+        console.error("Could not refresh disk space", err);
+      }
+    }
+  };
+
+  const handleBatchTransfer = async () => {
+    if (selectedPaths.size === 0) return;
+    try {
+      const targetDir = await open({
+        directory: true,
+        multiple: false,
+        title: t("batch_transfer_select_target"),
+      });
+      if (targetDir && typeof targetDir === 'string') {
+        setTransferActive(true);
+        await invoke('transfer_items', {
+          sources: Array.from(selectedPaths),
+          targetDir,
+        });
+        playSuccessSound();
+        const count = selectedPaths.size;
+        setSelectedPaths(new Set());
+        message(t("batch_transfer_success", { count }), { title: t("app_name"), kind: 'info' });
+      }
+    } catch (e) {
+      console.error(e);
+      message(t("delete_error") + ": " + String(e), { title: "Error", kind: 'error' });
+    } finally {
+      setTransferActive(false);
+    }
+  };
 
   const filteredFiles = useMemo(() => {
     return files
@@ -165,10 +293,10 @@ export default function App() {
         // 2. Region Filter
         if (regionFilter !== 'ALL') {
           const region = meta?.region_flag || '';
-          if (regionFilter === 'US' && !region.includes('🇺🇸')) return false;
-          if (regionFilter === 'EU' && !region.includes('🇪🇺')) return false;
-          if (regionFilter === 'JP' && !region.includes('🇯🇵')) return false;
-          if (regionFilter === 'OTHER' && (region.includes('🇺🇸') || region.includes('🇪🇺') || region.includes('🇯🇵'))) return false;
+          if (regionFilter === 'US' && region !== 'US') return false;
+          if (regionFilter === 'EU' && region !== 'EU') return false;
+          if (regionFilter === 'JP' && region !== 'JP') return false;
+          if (regionFilter === 'OTHER' && (region === 'US' || region === 'EU' || region === 'JP')) return false;
         }
 
         return true;
@@ -375,14 +503,6 @@ export default function App() {
     };
   }, []);
 
-  const handleChangeLanguage = (lang: string) => {
-    i18n.changeLanguage(lang);
-    try {
-      localStorage.setItem('machete_lang', lang);
-      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    } catch (_) {}
-  };
-
   const handleDelete = async (filePath: string) => {
     const isConfirmed = await confirm(t("delete_confirm_msg"), {
       title: t("delete_confirm_title"),
@@ -522,14 +642,9 @@ export default function App() {
     }
   };
 
-  const renderChangelogItems = (items: any) => {
-    if (!Array.isArray(items)) return null;
-    return items.map((item, idx) => <li key={idx}>{item}</li>);
-  };
-
   return (
     <div className="min-h-screen p-6 font-sans flex flex-col relative selection:bg-cyan-500/30">
-      <div className="crt-overlay fixed inset-0"></div>
+      {visualEffects && <div className="crt-overlay fixed inset-0 pointer-events-none"></div>}
       <TransferProgressModal active={transferActive} />
       {/* Background decoration */}
       <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
@@ -570,38 +685,63 @@ export default function App() {
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-          <select 
-            onChange={(e) => handleChangeLanguage(e.target.value)} 
-            value={i18n.language}
-            className="bg-slate-900/80 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block p-2 cursor-pointer hover:border-cyan-500/50 transition-colors outline-none"
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Check for Updates Button */}
+          <button 
+            onClick={() => checkForUpdates(false)}
+            disabled={updateChecking}
+            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-all text-xs font-mono disabled:opacity-50"
+            title={t("update_check_btn")}
+            onMouseEnter={playHoverSound}
           >
-            <option value="en">🇬🇧 English</option>
-            <option value="es_ve">🇻🇪 Español (Venezuela)</option>
-            <option value="fr">🇫🇷 Français</option>
-            <option value="de">🇩🇪 Deutsch</option>
-            <option value="it">🇮🇹 Italiano</option>
-            <option value="pt_br">🇧🇷 Português (BR)</option>
-            <option value="pt_pt">🇵🇹 Português (PT)</option>
-            <option value="ru">🇷🇺 Русский</option>
-            <option value="ja">🇯🇵 日本語</option>
-            <option value="zh">🇨🇳 中文</option>
-            <option value="ko">🇰🇷 한국어</option>
-            <option value="ar">🇸🇦 العربية</option>
-          </select>
-          
+            {updateChecking ? (
+              <div className="w-4 h-4 border-2 border-slate-800 border-t-cyan-400 rounded-full animate-spin"></div>
+            ) : (
+              <ArrowUpCircle className="w-4 h-4 text-cyan-400" />
+            )}
+            <span className="hidden xl:inline">{updateChecking ? t("update_checking") : t("update_check_btn")}</span>
+          </button>
+
+          {/* Select Directory Button */}
           <button 
             onClick={handleSelectDirectory}
-            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 font-bold py-2 px-4 rounded-lg flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(0,240,255,0.15)] hover:shadow-[0_0_20px_rgba(0,240,255,0.3)]"
+            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 font-bold py-2 px-3.5 rounded-lg flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(0,240,255,0.15)] hover:shadow-[0_0_20px_rgba(0,240,255,0.3)] text-xs font-mono"
+            onMouseEnter={playHoverSound}
           >
             <FolderSearch className="w-4 h-4" />
             {t("select_dir")}
           </button>
           
+          {/* Mute Audio Button */}
+          <button 
+            onClick={toggleMute}
+            className={`p-2 rounded-lg transition-all border ${
+              muted 
+                ? 'bg-red-500/10 text-red-400 border-red-500/40 hover:bg-red-500/20' 
+                : 'bg-slate-800 hover:bg-slate-700 text-cyan-400 border-slate-700 hover:border-cyan-500/50'
+            }`}
+            title={muted ? t("mute_toggle_unmute") : t("mute_toggle_mute")}
+            onMouseEnter={playHoverSound}
+          >
+            {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+
+          {/* Settings Modal Button */}
+          <button 
+            onClick={() => { playSelectSound(); setShowSettings(true); }}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold p-2 rounded-lg transition-colors border border-slate-700 hover:border-cyan-500/50"
+            title={t("settings_btn")}
+            onMouseEnter={playHoverSound}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
+          {/* About Button */}
           <button 
             onClick={() => setShowAbout(true)}
             className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold p-2 rounded-lg transition-colors border border-slate-700 hover:border-slate-500"
-            title="About"
+            title={t("about")}
+            onMouseEnter={playHoverSound}
           >
             <Info className="w-5 h-5" />
           </button>
@@ -616,6 +756,7 @@ export default function App() {
               onClick={handleRefresh}
               className="p-3 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
               title="Recargar Directorio"
+              onMouseEnter={playHoverSound}
             >
               <RefreshCw className="w-5 h-5" />
             </button>
@@ -634,7 +775,9 @@ export default function App() {
             {filteredFiles.length} / {files.length} TITLES • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
           </span>
           {/* Cyberpunk Grid Background */}
-          <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#00f0ff 1px, transparent 1px), linear-gradient(90deg, #00f0ff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+          {visualEffects && (
+            <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#00f0ff 1px, transparent 1px), linear-gradient(90deg, #00f0ff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+          )}
         </div>
       </div>
 
@@ -648,7 +791,7 @@ export default function App() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search title, PPSA code..."
+              placeholder={t("search_placeholder")}
               className="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500/80 transition-colors font-mono"
             />
             {searchTerm && (
@@ -667,25 +810,25 @@ export default function App() {
               onClick={() => setRegionFilter('ALL')}
               className={`px-2.5 py-1 rounded transition-colors ${regionFilter === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              ALL
+              {t("filter_all")}
             </button>
             <button
               onClick={() => setRegionFilter('US')}
               className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'US' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              🇺🇸 US
+              US
             </button>
             <button
               onClick={() => setRegionFilter('EU')}
               className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'EU' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              🇪🇺 EU
+              EU
             </button>
             <button
               onClick={() => setRegionFilter('JP')}
               className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'JP' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              🇯🇵 JP
+              JP
             </button>
           </div>
 
@@ -694,16 +837,48 @@ export default function App() {
             <button
               onClick={() => setSortBy('NAME')}
               className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${sortBy === 'NAME' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
-              title="Sort by Name (A-Z)"
+              title={t("sort_name")}
             >
-              <ArrowDownAZ className="w-3.5 h-3.5" /> A-Z
+              <ArrowDownAZ className="w-3.5 h-3.5" /> {t("sort_name")}
             </button>
             <button
               onClick={() => setSortBy('SIZE_DESC')}
               className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${sortBy === 'SIZE_DESC' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
-              title="Sort by Size (Largest first)"
+              title={t("sort_size")}
             >
-              <ArrowDown01 className="w-3.5 h-3.5" /> Size
+              <ArrowDown01 className="w-3.5 h-3.5" /> {t("sort_size")}
+            </button>
+          </div>
+
+          {/* Action Toolbar Buttons: Storage Analyzer & Select All */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                playSelectSound();
+                setShowStorageAnalyzer(true);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/40 hover:bg-cyan-500/20 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all"
+              title={t("storage_tooltip")}
+              onMouseEnter={playHoverSound}
+            >
+              <PieChart className="w-3.5 h-3.5" /> {t("storage_btn")}
+            </button>
+
+            <button
+              onClick={selectedPaths.size === filteredFiles.length ? clearSelection : selectAllFiltered}
+              className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-all"
+              title={selectedPaths.size === filteredFiles.length && filteredFiles.length > 0 ? t("deselect_all") : t("select_all")}
+              onMouseEnter={playHoverSound}
+            >
+              {selectedPaths.size === filteredFiles.length && filteredFiles.length > 0 ? (
+                <>
+                  <CheckSquare className="w-3.5 h-3.5 text-cyan-400" /> {t("deselect_all")}
+                </>
+              ) : (
+                <>
+                  <Square className="w-3.5 h-3.5" /> {t("select_all")}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -712,27 +887,118 @@ export default function App() {
       {/* Grid of Files */}
       {currentDir && (
         <div className="relative min-h-[300px]">
-          
           <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 transition-opacity duration-300 ${isLoading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
-          <AnimatePresence>
-            {filteredFiles.map((file) => {
-              const meta = file.ppsa ? metadata[file.ppsa] : null;
-              return (
-                <GameCard 
-                  key={file.path} 
-                  file={file} 
-                  meta={meta} 
-                  t={t} 
-                  onDelete={handleDelete} 
-                  onRename={(ppsa: string, defaultTitle: string) => openRenameModal(ppsa, defaultTitle)} 
-                  onChangeCover={handleChangeCover} 
-                />
-              );
-            })}
-          </AnimatePresence>
-        </div>
+            <AnimatePresence>
+              {filteredFiles.map((file) => {
+                const meta = file.ppsa ? metadata[file.ppsa] : null;
+                const isSelected = selectedPaths.has(file.path);
+                return (
+                  <GameCard 
+                    key={file.path} 
+                    file={file} 
+                    meta={meta} 
+                    t={t}
+                    isSelected={isSelected}
+                    visualEffects={visualEffects}
+                    onToggleSelect={toggleSelectGame}
+                    onOpenDetails={(f: any) => {
+                      playPS5GameSelectSound();
+                      setInspectingGame(f);
+                    }}
+                    onDelete={handleDelete} 
+                    onRename={(ppsa: string, defaultTitle: string) => openRenameModal(ppsa, defaultTitle)} 
+                    onChangeCover={handleChangeCover} 
+                  />
+                );
+              })}
+            </AnimatePresence>
+          </div>
         </div>
       )}
+
+      {/* Floating Cyberpunk Batch Action Bar */}
+      <AnimatePresence>
+        {selectedPaths.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel px-6 py-3.5 rounded-2xl border border-cyan-400/60 shadow-[0_0_30px_rgba(6,182,212,0.3)] flex items-center gap-6 bg-slate-950/95 backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#06b6d4]"></div>
+              <span className="text-white font-bold">{selectedPaths.size}</span>
+              <span className="text-slate-400">{t("batch_games")} ({formatBytes(selectedTotalSize)})</span>
+            </div>
+
+            <div className="h-4 w-px bg-slate-800"></div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleBatchTransfer}
+                className="py-1.5 px-3.5 rounded-xl border border-cyan-500/50 bg-cyan-950/60 hover:bg-cyan-500/20 text-cyan-300 text-xs font-mono font-bold flex items-center gap-2 transition-all hover:scale-105"
+                onMouseEnter={playHoverSound}
+              >
+                <Send className="w-3.5 h-3.5" /> {t("batch_transfer_btn")}
+              </button>
+
+              <button
+                onClick={handleBatchDelete}
+                className="py-1.5 px-3.5 rounded-xl border border-red-500/50 bg-red-950/60 hover:bg-red-500/20 text-red-400 text-xs font-mono font-bold flex items-center gap-2 transition-all hover:scale-105"
+                onMouseEnter={playHoverSound}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> {t("batch_delete_btn")} ({selectedPaths.size})
+              </button>
+
+              <button
+                onClick={clearSelection}
+                className="text-slate-400 hover:text-white text-xs font-mono font-bold px-2 py-1 transition-colors"
+              >
+                {t("batch_cancel_btn")}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Game Details Modal */}
+      {inspectingGame && (
+        <GameDetailsModal
+          game={inspectingGame}
+          meta={inspectingGame.ppsa ? metadata[inspectingGame.ppsa] : null}
+          onClose={() => setInspectingGame(null)}
+          onRename={(ppsa, title) => openRenameModal(ppsa, title)}
+          onChangeCover={handleChangeCover}
+          onDelete={handleDelete}
+          t={t}
+        />
+      )}
+
+      {/* Storage Analyzer Modal */}
+      {showStorageAnalyzer && (
+        <StorageAnalyzerModal
+          files={files}
+          metadata={metadata}
+          diskInfo={diskInfo}
+          onClose={() => setShowStorageAnalyzer(false)}
+          onSelectGame={(game) => setInspectingGame(game)}
+          t={t}
+        />
+      )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        visualEffects={visualEffects}
+        onToggleVisualEffects={handleToggleVisualEffects}
+        audioMuted={muted}
+        onToggleAudio={toggleMute}
+        onCheckForUpdates={() => checkForUpdates(false)}
+        updateChecking={updateChecking}
+        onOpenAbout={() => setShowAbout(true)}
+        t={t}
+      />
 
       {/* Drop Zone */}
       {currentDir && (
@@ -850,54 +1116,16 @@ export default function App() {
             <div className="mt-6 border-t border-cyan-500/30 pt-4">
               <h3 className="text-sm font-semibold text-cyan-400 mb-2">{t("changelog_title")}</h3>
               <div className="bg-black/50 rounded-lg p-3 h-40 overflow-y-auto text-xs text-slate-300 space-y-3 font-mono border border-cyan-500/10 custom-scrollbar">
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v202_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v202_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v200_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v200_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v123_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v123_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v120_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v120_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v110_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v110_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v100_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v100_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v020_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v020_items", { returnObjects: true }))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-cyan-300 font-bold">{t("changelog_v010_title")}</div>
-                  <ul className="list-disc pl-4 mt-1 opacity-80">
-                    {renderChangelogItems(t("changelog_v010_items", { returnObjects: true }))}
-                  </ul>
-                </div>
+                {Array.isArray(t("changelogs", { returnObjects: true })) && (t("changelogs", { returnObjects: true }) as any[]).map((log: any, idx: number) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="text-cyan-300 font-bold">{log.version}</div>
+                    <ul className="list-disc pl-4 mt-1 opacity-80 space-y-0.5">
+                      {Array.isArray(log.items) && log.items.map((item: string, itemIdx: number) => (
+                        <li key={itemIdx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             </div>
           </motion.div>

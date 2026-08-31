@@ -1,0 +1,8 @@
+name = "machete-covers"
+main = "worker.js"
+compatibility_date = "2026-08-31"
+account_id = "95434973a53fa65e0a4e76829c70635c"
+
+[[r2_buckets]]
+binding = "MACHETE_COVERS"
+bucket_name = "machete-covers"

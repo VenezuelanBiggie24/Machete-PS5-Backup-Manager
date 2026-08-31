@@ -1,10 +1,10 @@
 export function HolographicDisk({ diskInfo, t }: any) {
   if (!diskInfo) return null;
   
-  const total = diskInfo.total / (1024 * 1024 * 1024);
-  const free = diskInfo.available / (1024 * 1024 * 1024);
-  const used = total - free;
-  const percentUsed = (used / total) * 100;
+  const total = (diskInfo.total || 1) / (1024 * 1024 * 1024);
+  const free = (diskInfo.available || diskInfo.free || 0) / (1024 * 1024 * 1024);
+  const used = Math.max(0, total - free);
+  const percentUsed = Math.min(100, Math.max(0, (used / total) * 100));
   const isFull = percentUsed > 90;
   
   const radius = 40;

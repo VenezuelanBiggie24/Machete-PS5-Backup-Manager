@@ -20,47 +20,117 @@
   "edit_title": "Renombrar Título",
   "change_cover": "Cambiar Carátula",
   "rename_prompt": "Introduce el nuevo título para este juego:",
-  "changelog_title": "Changelog",
-  "changelog_v110_title": "v1.1.0 - (Current)",
-  "changelog_v110_items": [
-    "Custom cover and title support (manual overrides).",
-    "Larger default window size for optimal layout.",
-    "Added SSD warning during scanning.",
-    "Localized changelog and dialogs."
+  "changelog_title": "Historial de Cambios",
+  "changelogs": [
+    {
+      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
+      "items": [
+        "CDN Global Propietaria de Ultra-Baja Latencia: Servidor Edge en Cloudflare R2 con catálogo maestro de más de 11,940 carátulas verticales 4K (3:4) con calque oficial blanco de PS5, resolviendo portadas a nivel mundial en <15ms sin depender de servidores de terceros.",
+        "Compromiso Inquebrantable con la Privacidad y el Anonimato Absoluto: Cero recopilación de datos, cero telemetría, cero rastreo de IPs y cero analíticas. Peticiones anónimas con User-Agent genérico sin huella digital. Tu almacenamiento y respaldos son 100% privados y locales.",
+        "Soporte Nativo y Exhaustivo para ShadowMountPlus: Reconocimiento e inspección completa de todos los formatos del ecosistema ShadowMountPlus (drakmor), incluyendo .ffpkg (UFS), .exfat (exFAT 64KB), .ffpfs (PFS), .ffpfsc (contenedores comprimidos MicroMount/MkPFS) y volcados en carpetas con lectura de metadatos en streaming a 1MB.",
+        "Motor Visual Anti-Gravedad 3D: Levitación flotante con resortes inerciales, inclinación 3D en tiempo real con perspectiva 1200px y sombras volumétricas reactivas al cursor.",
+        "Acústica Nativa PS5 & Decodificación ATRAC9: Acorde armónico senoidal original de selección de PlayStation 5 y motor decodificador snd0.at9 nativo en Rust para escuchar la banda sonora oficial de cada juego.",
+        "Analizador Gráfico de Almacenamiento & Modo Lote: Visualización Treemap interactiva con mapa de calor del disco duro, ranking de juegos pesados y barra de acciones por lote con atajos de teclado.",
+        "Panel de Ajustes del Sistema: Control total para activar o desactivar efectos visuales y acústicos con persistencia local.",
+        "Motor Rust 2021 Compilado con opt-level=3 y LazyLock: Cero sobrecarga de recompilación de regex y transferencias I/O a máxima velocidad NVMe y optimización APFS Clonefile en Mac."
+      ]
+    },
+    {
+      "version": "v2.0.2 - Auto-Actualizador Criptográfico",
+      "items": [
+        "Auto-actualizador integrado Tauri v2 con verificación de firmas criptográficas Minisign.",
+        "Descarga e instalación fluida de actualizaciones directamente desde GitHub Releases con barra de progreso.",
+        "Detección y notificación en tiempo real de nuevas versiones sin reiniciar."
+      ]
+    },
+    {
+      "version": "v2.0.0-alpha.1",
+      "items": [
+        "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
+        "Motor I/O asíncrono impulsado por Tokio.",
+        "Cálculo de hashes Blake3 Anti Bit-Rot.",
+        "Cálculo dinámico del tamaño total del directorio."
+      ]
+    },
+    {
+      "version": "v1.2.3",
+      "items": [
+        "Corregido error de 0 GB en el peso de carpetas.",
+        "Añadido cálculo total de GB en la barra superior."
+      ]
+    },
+    {
+      "version": "v1.1.0",
+      "items": [
+        "Soporte para carátulas y títulos personalizados.",
+        "Tamaño de ventana optimizado por defecto.",
+        "Advertencia de escaneo en unidades SSD de gran capacidad."
+      ]
+    },
+    {
+      "version": "v1.0.0 - Release Oficial",
+      "items": [
+        "Lanzamiento oficial de Machete PS5 Backup Manager.",
+        "Descarga automática de carátulas en alta resolución.",
+        "Insignia PPSA en esquina inferior.",
+        "Anonimización estricta de peticiones a la API."
+      ]
+    }
   ],
-  "changelog_v100_title": "v1.0.0 - (Release)",
-  "changelog_v100_items": [
-    "Official rename to Machete PS5 Backup Manager.",
-    "Cross-region AI cover fetching fallback.",
-    "Relocated PPSA badge to bottom-right.",
-    "Strict anonymization of SerialStation requests."
-  ],
-  "changelog_v020_title": "v0.2.0 - (Beta)",
-  "changelog_v020_items": [
-    "Incorporación de sistema de prevención de borrado (Native Dialog).",
-    "Reestructuración de la UI al estilo Cyberpunk y modo oscuro.",
-    "Soporte nativo para 11 idiomas con cambio dinámico."
-  ],
-  "changelog_v010_title": "v0.1.0 - (Inicial)",
-  "changelog_v010_items": [
-    "Prueba de concepto. Lectura asíncrona de archivos.",
-    "Conexión inicial básica con API SerialStation.",
-    "Cálculo de espacio de disco disponible."
-  ],
+  "settings_title": "Ajustes del Sistema",
+  "settings_visual_effects": "Efectos Visuales 3D y Levitación",
+  "settings_visual_effects_desc": "Activa la anti-gravedad 3D, sombras de suelo y resplandores de neón.",
+  "settings_audio": "Efectos de Audio y Bandas Sonoras",
+  "settings_audio_desc": "Reproduce la acústica de PS5 y bandas sonoras originales snd0.at9.",
+  "settings_language": "Idioma de la Interfaz",
+  "settings_btn": "Ajustes",
+  "storage_btn": "ALMACENAMIENTO",
+  "storage_tooltip": "Analizar Almacenamiento",
+  "select_all": "SELECCIONAR TODOS",
+  "deselect_all": "DESELECCIONAR",
+  "search_placeholder": "Buscar por título, código PPSA...",
+  "sort_name": "A-Z",
+  "sort_size": "Tamaño",
+  "filter_all": "TODOS",
+  "batch_games": "Juegos seleccionados",
+  "batch_transfer_btn": "TRANSFERIR A OTRO DISCO",
+  "batch_delete_btn": "ELIMINAR",
+  "batch_cancel_btn": "CANCELAR",
+  "batch_delete_confirm_title": "Eliminar respaldos",
+  "batch_delete_confirm_msg": "¿Deseas eliminar PERMANENTEMENTE los {{count}} juegos seleccionados ({{size}})? Esta acción no se puede deshacer.",
+  "batch_transfer_select_target": "Seleccionar disco o carpeta de destino para transferir",
+  "batch_transfer_success": "¡Transferencia de {{count}} juegos completada con éxito!",
+  "view_details": "VER DETALLES",
+  "format_folder": "Carpeta",
+  "format_container": "Contenedor",
+  "open_in_folder": "Abrir en Carpeta",
+  "open_prospero": "Ver en Prospero Patches",
+  "copied_to_clipboard": "¡Copiado!",
+  "copy_ppsa": "Copiar PPSA",
+  "spec_size": "Tamaño en Disco",
+  "spec_app_ver": "Versión de App",
+  "spec_min_fw": "Firmware Mínimo",
+  "spec_sdk": "SDK de Compilación",
+  "spec_format": "Formato",
+  "spec_content_id": "Content ID",
+  "spec_path": "Ubicación en Disco",
+  "calculating": "Calculando...",
+  "no_ppsa": "SIN PPSA",
+  "storage_analyzer_title": "ANALIZADOR DE ALMACENAMIENTO // TREEMAP",
+  "storage_analyzer_subtitle": "{{count}} respaldos de PS5 ocupando {{size}}",
+  "storage_disk_external": "DISCO EXTERNO:",
+  "storage_disk_used_of": "{{used}} usado de {{total}} ({{free}} libre)",
+  "storage_legend_ps5": "Respaldos PS5",
+  "storage_legend_free": "Espacio Libre",
+  "storage_heavy_rankings": "JUEGOS MÁS PESADOS (RANKING)",
+  "storage_header_size_pct": "TAMAÑO & PORCENTAJE",
+  "storage_of_total": "del total",
+  "mute_toggle_unmute": "Activar Audio (PS5 UI + BGM)",
+  "mute_toggle_mute": "Silenciar Audio",
   "license_info": "Distribuido bajo la Licencia GPLv3",
   "repository_label": "Repositorio Oficial",
-  "changelog_v200_title": "v2.0.0-alpha.1",
-  "changelog_v200_items": [
-    "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
-    "Motor I/O asíncrono impulsado por Tokio.",
-    "Cálculo de hashes Blake3 Anti Bit-Rot.",
-    "Cálculo dinámico del tamaño total del directorio."
-  ],
-  "changelog_v123_title": "v1.2.3",
-  "changelog_v123_items": [
-    "Corregido error de '0 GB' en el peso de carpetas.",
-    "Añadido cálculo total de GB en la barra superior."
-  ],
+  "delete": "Eliminar",
+  "delete_error": "Error al eliminar el respaldo",
   "update_title": "Actualización de Software",
   "update_check_btn": "Buscar Actualizaciones",
   "update_checking": "Verificando...",
@@ -70,13 +140,5 @@
   "update_downloading": "Descargando actualización...",
   "update_install_btn": "Descargar e Instalar",
   "update_later": "Más Tarde",
-  "update_relaunch": "Reiniciar Ahora",
-  "changelog_v202_title": "v2.0.2 - Auto-Actualizador",
-  "changelog_v202_items": [
-    "Auto-actualizador integrado: verifica nuevas versiones desde GitHub Releases.",
-    "Descarga e instala actualizaciones directamente desde la app con barra de progreso.",
-    "Versión dinámica en la sección Acerca de (sin más versiones fijas en el código).",
-    "Verificación automática de actualizaciones al iniciar.",
-    "Toda la interfaz del actualizador traducida a 12 idiomas."
-  ]
+  "update_relaunch": "Reiniciar Ahora"
 }

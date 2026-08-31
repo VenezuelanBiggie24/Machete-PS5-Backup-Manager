@@ -1,32 +1,27 @@
 <div align="right">
-  <a href="README.md">🇺🇸 English</a> | <strong>🇪🇸 Español</strong> | <a href="README_ve.md">🇻🇪 Español (Venezuela)</a>
+  <a href="README.md">English</a> | <strong>Español</strong> | <a href="README_ve.md">Español (Venezuela)</a>
 </div>
 
 <div align="center">
 
-# 🔪 Machete PS5 Backup Manager
+# Machete PS5 Backup Manager
 
-**Deja de apostar con tus respaldos. Empieza a verlos.**
+**Catálogo visual y suite de gestión de alto rendimiento para respaldos de PlayStation 5.**
 
-[![License: GPL v3](https://img.shields.io/badge/Licencia-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform](https://img.shields.io/badge/Plataforma-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen)]()
-[![Built with Tauri](https://img.shields.io/badge/Construido%20con-Tauri%20%2B%20Rust-orange)]()
+[![Licencia: GPL v3](https://img.shields.io/badge/Licencia-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Plataforma](https://img.shields.io/badge/Plataforma-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen)]()
+[![Construido con Tauri](https://img.shields.io/badge/Construido%20con-Tauri%20v2%20%2B%20Rust-orange)]()
+[![Versión](https://img.shields.io/badge/Versi%C3%B3n-v2.1.0-blue)]()
 
 </div>
 
 ---
 
-## El Problema
+## Visión General
 
-Tienes un disco externo de 2TB lleno de respaldos de PS5. Decenas de archivos `.exFAT`, `.ffpfsc` y carpetas — todos con nombres crípticos como `PPSA04264` o `PPSA29343.exfat`. ¿Cuál es ese inmenso RPG de mundo abierto? ¿Cuál es tu simulador de carreras favorito? No tienes ni idea. Y cuando necesitas liberar espacio, estás a un clic de borrar 96GB del juego equivocado. **Para siempre.**
+Administrar dispositivos de almacenamiento externo repletos de respaldos de PlayStation 5 en bruto suele ser un ejercicio de incertidumbre. Los sistemas de archivos contienen con frecuencia cientos de gigabytes identificados únicamente por códigos crípticos como `PPSA04264`, `PPSA29343.exfat` o volcados arbitrarios de particiones. Sin una indexación visual directa, distinguir entre títulos de mundo abierto de gran escala y pequeñas utilidades exige consultar bases de datos externas, convirtiendo el mantenimiento y la liberación de espacio en operaciones de alto riesgo.
 
-Ese caos termina hoy.
-
-## La Solución
-
-**Machete PS5 Backup Manager** escanea tu directorio de respaldos, lee el PPSA ID de cada archivo y carpeta, y al instante obtiene el **nombre oficial del juego y la carátula en alta calidad** desde la base de datos de SerialStation. En segundos, tu desastre ilegible se convierte en una galería visual impresionante donde puedes identificar cada respaldo de un vistazo.
-
-Sin más adivinanzas. Sin más accidentes. Sin más desastres.
+**Machete PS5 Backup Manager** resuelve esta fricción. Desarrollado sobre una arquitectura nativa de alta eficiencia, Machete inspecciona los directorios de respaldos, procesa los Title IDs tanto en carpetas estructuradas como en contenedores monolíticos, y ofrece una interfaz visual instantánea con carátulas en calidad 4K, identificación de región y operaciones de archivo precisas.
 
 <div align="center">
 
@@ -36,104 +31,114 @@ Sin más adivinanzas. Sin más accidentes. Sin más desastres.
 
 ---
 
-## ✨ Características
+## Capacidades Principales
 
-### 🔍 Reconocimiento Inteligente
-Machete detecta automáticamente archivos `.exFAT`, `.ffpfsc` y carpetas que contienen respaldos de PS5. Extrae el Title ID (PPSA) y lo resuelve al nombre real del juego y su región — sin intervención manual.
+### Compatibilidad Universal con Contenedores y Respaldos
+Machete incorpora reconocimiento profundo de formatos desde nombres de archivo, tablas de partición y estructuras de directorios. Formatos soportados:
+* Formatos de imagen monolítica y ShadowMountPlus: `.ffpkg` (UFS), `.exFAT`, `.ffpfs` (PFS), `.ffpfsc` (contenedores comprimidos MicroMount / MkPFS), `.img`, `.bin`, `.dump`, `.raw`, `.iso`, `.pkg`, `.dat`, `.vhd`, `.vhdx`, `.dsk`, `.bak`, `.part`
+* Volcados estándar de directorios con metadatos `sce_sys` y archivos `param.json`.
 
-### 🎨 Carátulas Instantáneas
-Cada juego reconocido obtiene su arte de caja oficial directamente de SerialStation. Tu disco de respaldos pasa de ser un muro de texto a una biblioteca visual en segundos. El sistema de búsqueda cross-región garantiza la máxima cobertura.
+### Red CDN Global Dedicada para Carátulas
+* Integración directa con una red edge distribuida en Cloudflare R2 que sirve más de 11.940 carátulas maestras verticales en ultra alta resolución (relación de aspecto 3:4).
+* Carátulas con encabezados blancos calados de PS5 renderizados con máxima precisión.
+* Latencia de entrega global inferior a 15 ms, con resolución automatizada de fallbacks por región y Title ID.
 
-### 🛡️ Cero Riesgo para tus Archivos
-Machete **jamás** renombra, mueve ni modifica tus archivos originales. Todos los títulos personalizados y las carátulas custom se almacenan en una base de datos local en tu sistema. Tus respaldos se quedan exactamente como están.
+### Motor de E/S de Alto Rendimiento
+* **macOS APFS Copy-On-Write (`clonefile`):** Duplicación instantánea y con consumo cero de espacio adicional para contenedores de respaldos de decenas de gigabytes en volúmenes APFS.
+* **Canal Directo de E/S Optimizado:** Búfer de transmisión dedicado de 16 MB en Windows, macOS y Linux para maximizar operaciones secuenciales sostenidas de lectura/escritura en unidades SSD NVMe PCIe y almacenamiento externo.
+* Telemetría de transferencia en tiempo real con cálculo continuo de velocidad y tiempo estimado (ETA).
 
-### ✏️ Edición Manual
-¿Un juego no fue reconocido? Sin problema. Pasa el mouse por encima de cualquier entrada para editar manualmente el título o asignar una carátula personalizada — todo almacenado localmente, todo reversible.
+### Anonimato Total y Cero Telemetría
+* Soberanía local de datos garantizada: Sin métricas de usuario, sin analítica, sin registro de IP, sin informes de fallos y sin rastreo externo.
+* Las peticiones remotas a la CDN omiten encabezados de rastreo y emplean User-Agents genéricos de navegador para evitar la huella digital (fingerprinting).
+* El estado de la aplicación, títulos personalizados y carátulas manuales se almacenan exclusivamente en una base de datos JSON local en su sistema de archivos.
 
-### 🗑️ Eliminación Segura
-Cuando necesites liberar espacio, la función de eliminación de Machete muestra una advertencia clara y localizada antes de borrar permanentemente cualquier archivo o carpeta. Sin eliminaciones silenciosas, sin sorpresas.
+### Operaciones Granulares y Seguras
+* **Protección ante Eliminación:** Diálogos de confirmación visual multinivel previenen la pérdida accidental de datos al liberar espacio.
+* **Sobrescritura Manual de Metadatos:** Permite asignar títulos y carátulas personalizadas para títulos no catalogados o modificaciones caseras.
+* **Lectura No Destructiva:** Machete opera bajo un esquema de solo lectura durante la catalogación, preservando archivos y marcas de tiempo originales.
 
-### 🌍 11 Idiomas
-Inglés, Español (Venezuela), Francés, Alemán, Italiano, Portugués (BR y PT), Ruso, Japonés, Chino, Coreano y Árabe. Cada etiqueta, cada advertencia, cada entrada del changelog — completamente traducido.
-
-### 🕵️ Privacidad Ante Todo
-Todas las solicitudes a la API están completamente anonimizadas. Sin headers de rastreo, sin user-agents identificables, sin cookies. Machete no deja rastro de tu actividad en ningún servidor externo.
-
-### ⚡ Velocidad Brutal
-Construido con **Tauri + Rust** en el backend y **React + TypeScript** en el frontend. Rendimiento nativo en cada plataforma, con una fracción del consumo de memoria de las alternativas basadas en Electron.
+### Localización Integral
+Completamente traducido a 11 idiomas:
+Español (Castellano y Latinoamérica), Español (Venezuela), Inglés, Francés, Alemán, Italiano, Portugués (Brasil y Portugal), Ruso, Japonés, Chino Simplificado, Coreano y Árabe.
 
 ---
 
-## 🚀 Instalación
+## Especificaciones Técnicas
 
-### Descarga
-Ve a la página de [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager/releases) y descarga el instalador para tu plataforma:
+| Componente | Especificación |
+|---|---|
+| Motor de Ejecución | Tauri v2 |
+| Arquitectura Backend | Rust 2021 (Bindings nativos POSIX / Win32 / macOS CoreFoundation) |
+| Framework Frontend | React 19 + TypeScript |
+| Sistema de Diseño | Tailwind CSS v4 |
+| Distribución de Recursos | Cloudflare R2 Global Edge CDN (11.940+ recursos) |
+| Base de Datos Local | Almacenamiento JSON soberano en AppData del sistema |
+| Licencia | GNU General Public License v3.0 (GPLv3) |
 
-| Plataforma | Formato |
-|------------|---------|
-| macOS | `.dmg` / `.app` |
-| Windows | `.msi` / `.exe` |
-| Linux | `.AppImage` / `.deb` |
+---
 
-> [!WARNING]  
-> **Usuarios de macOS:** Si al abrir la app recibes un error diciendo que *"está dañada y debe trasladarse a la papelera"*, es una medida de seguridad estándar de Apple para apps de código abierto. 
-> Para solucionarlo, arrastra la app a tu carpeta de **Aplicaciones**, abre la **Terminal** y ejecuta este comando:
-> ```bash
-> xattr -cr "/Applications/Machete PS5 Backup Manager.app"
-> ```
+## Instalación
 
+Descargue la versión más reciente para su plataforma desde la página de [Releases](https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager/releases):
 
+| Sistema Operativo | Formato de Paquete |
+|---|---|
+| macOS | `.dmg` / `.app` (Universal Apple Silicon e Intel) |
+| Windows | `.msi` / `.exe` (x64) |
+| Linux | `.AppImage` / `.deb` (x86_64) |
 
-> [!NOTE]  
-> **Usuarios de Windows:** Al ejecutar el instalador por primera vez, es posible que salte la pantalla azul de Windows SmartScreen ("Windows protegió su PC"). Simplemente haz clic en **"Más información"** y luego en **"Ejecutar de todas formas"**.
+### Instrucciones Específicas por Plataforma
 
-> [!NOTE]  
-> **Usuarios de Linux:** Si usas el formato `.AppImage`, recuerda otorgarle permisos de ejecución antes de abrirlo. Haz clic derecho en el archivo -> Propiedades -> Permisos -> Marca "Permitir ejecutar el archivo como un programa", o ejecuta `chmod +x Machete*.AppImage` en la terminal.
+#### macOS
+Si macOS Gatekeeper indica que la aplicación está dañada o no se puede verificar:
+1. Mueva `Machete PS5 Backup Manager.app` a la carpeta `/Applications`.
+2. Ejecute el siguiente comando en la Terminal para eliminar los atributos de cuarentena:
+   ```bash
+   xattr -cr "/Applications/Machete PS5 Backup Manager.app"
+   ```
 
-### Compilar desde el Código Fuente
+#### Windows
+Al ejecutar el instalador por primera vez, Windows SmartScreen puede mostrar una advertencia de protección. Haga clic en **Más información** y luego en **Ejecutar de todas formas**.
+
+#### Linux
+Asegúrese de otorgar permisos de ejecución al archivo `.AppImage` descargado:
 ```bash
+chmod +x Machete*.AppImage
+```
+
+---
+
+## Compilación desde el Código Fuente
+
+### Requisitos Previos
+* Node.js 18.0 o superior
+* Rust 1.70 o superior (Toolchain `cargo`)
+
+### Instrucciones de Compilación
+```bash
+# Clonar el repositorio
 git clone https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager.git
 cd Machete-PS5-Backup-Manager
+
+# Instalar dependencias de frontend
 npm install
+
+# Compilar binario nativo optimizado
 npm run tauri build
 ```
 
-**Requisitos:** Node.js 18+, Rust 1.70+
+---
+
+## Licencia
+
+Este proyecto está licenciado bajo la **GNU General Public License v3.0**. Consulte el archivo [LICENSE](LICENSE) para conocer los términos completos.
+
+Usted tiene la libertad de inspeccionar, modificar y redistribuir este software. Cualquier trabajo derivado debe permanecer bajo la licencia GPLv3, preservando el acceso libre y de código abierto para la comunidad.
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Autor
 
-| Capa | Tecnología |
-|------|-----------|
-| Backend | Rust (Tauri v2) |
-| Frontend | React 18 + TypeScript |
-| Estilos | Tailwind CSS |
-| Animaciones | Framer Motion |
-| API | SerialStation (anonimizada) |
-| i18n | i18next (11 idiomas) |
-| BD Local | Archivo JSON en AppData del sistema |
+Desarrollado por **VenezuelanBiggie24**.
 
----
-
-## 📜 Licencia
-
-Este proyecto está licenciado bajo la **GNU General Public License v3.0** — consulta el archivo [LICENSE](LICENSE) para más detalles.
-
-Eres libre de usar, modificar y redistribuir este software. Cualquier trabajo derivado también debe ser publicado bajo GPLv3. Este código permanecerá libre y de código abierto, para siempre.
-
----
-
-## 👤 Autor
-
-**VenezuelanBiggie24**
-
-Un orgulloso desarrollador venezolano. Aunque las realidades del comunismo me obligaron a dejar mi hogar, esa adversidad se transformó en resiliencia, permitiéndome hoy escribir código y crear soluciones sin fronteras desde cualquier rincón del mundo.
-
----
-
-<div align="center">
-
-⭐ **Si Machete te salvó de un desastre con tus respaldos, considera dejar una estrella** ⭐
-
-</div>

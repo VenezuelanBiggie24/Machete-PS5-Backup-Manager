@@ -3,10 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use regex::Regex;
 use sysinfo::Disks;
-use reqwest::blocking::get;
-use serde_json::Value;
+use std::sync::LazyLock;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct FileItem {
     name: String,
     path: String,
@@ -15,6 +14,12 @@ struct FileItem {
     is_dir: bool,
     local_title: Option<String>,
     local_icon: Option<String>,
+    app_ver: Option<String>,
+    sdk_ver: Option<String>,
+    min_firmware: Option<String>,
+    content_id: Option<String>,
+    category: Option<String>,
+    has_local_icon: bool,
 }
 
 #[derive(Serialize)]
@@ -40,6 +45,26 @@ struct CustomMeta {
     title: Option<String>,
     cover_base64: Option<String>, // Store image as base64 string directly to avoid path issues
 }
+
+static RE_FILENAME: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:PPSA|CUSA)[-_ ]?\d{5}").expect("valid regex")
+});
+
+static RE_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"titleId"\s*:\s*"((?:PPSA|CUSA)\d{5})""#).expect("valid regex")
+});
+
+static RE_RAW_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)(PPSA\d{5}|CUSA\d{5})"#).expect("valid regex")
+});
+
+static RE_TITLE_NAME: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"titleName"\s*:\s*"([^"]+)""#).expect("valid regex")
+});
+
+static RE_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"appVer"\s*:\s*"([^"]+)""#).expect("valid regex")
+});
 
 fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
     let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
@@ -173,6 +198,8 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
         // PRIVACY/SECURITY: Create an anonymized client that doesn't leak OS/Browser data
         let client = reqwest::blocking::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)") // Generic non-identifiable UA
+            .timeout(std::time::Duration::from_secs(6))
+            .connect_timeout(std::time::Duration::from_secs(3))
             .build()
             .unwrap_or_default();
             
@@ -215,13 +242,13 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
                             let mut region_flag = None;
                             if let Some(id_str) = item.get("id").and_then(|id| id.as_str()) {
                                 if id_str.starts_with("UP") {
-                                    region_flag = Some("🇺🇸".to_string());
+                                    region_flag = Some("US".to_string());
                                 } else if id_str.starts_with("EP") {
-                                    region_flag = Some("🇪🇺".to_string());
+                                    region_flag = Some("EU".to_string());
                                 } else if id_str.starts_with("JP") {
-                                    region_flag = Some("🇯🇵".to_string());
+                                    region_flag = Some("JP".to_string());
                                 } else if id_str.starts_with("HP") {
-                                    region_flag = Some("🌏".to_string()); 
+                                    region_flag = Some("ASIA".to_string()); 
                                 }
                             }
                             
@@ -233,15 +260,23 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
             None
         };
         
-        // 1. Try original PPSA first
         let mut final_name = clean_ppsa.clone();
         let mut final_cover: Option<String> = None;
         let mut final_region: Option<String> = None;
-        
+
+        // 1. Try original PPSA on Machete's Own Cloudflare R2 Global CDN First
+        let machete_cdn_url = format!("https://pub-ff9ca9f4c73c45fca9efa3fadc7a65cf.r2.dev/{}.webp", clean_ppsa);
+        if let Ok(cdn_res) = client.head(&machete_cdn_url).send() {
+            if cdn_res.status().is_success() {
+                final_cover = Some(machete_cdn_url);
+            }
+        }
+
+        // 2. Fetch metadata & artwork from Store/SerialStation
         if let Some((name, cover, region)) = get_product_data(&clean_ppsa) {
             final_name = name;
             final_region = region; // Keep original region flag
-            if cover.is_some() {
+            if final_cover.is_none() && cover.is_some() {
                 final_cover = cover;
             }
         }
@@ -368,10 +403,48 @@ async fn get_folder_size(path: String) -> Result<u64, String> {
     }).await.map_err(|e| e.to_string())
 }
 
-fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<String>) {
+struct Ps5InspectResult {
+    ppsa: Option<String>,
+    local_title: Option<String>,
+    local_icon: Option<String>,
+    app_ver: Option<String>,
+    sdk_ver: Option<String>,
+    min_firmware: Option<String>,
+    content_id: Option<String>,
+    category: Option<String>,
+    has_local_icon: bool,
+}
+
+fn format_fw_version(val: &serde_json::Value) -> Option<String> {
+    if let Some(s) = val.as_str() {
+        if s.starts_with("0x") || s.starts_with("0X") {
+            if let Ok(num) = u64::from_str_radix(&s[2..], 16) {
+                let major = (num >> 24) & 0xFF;
+                let minor = (num >> 16) & 0xFF;
+                return Some(format!("{}.{:02}", major, minor));
+            }
+        }
+        return Some(s.to_string());
+    } else if let Some(n) = val.as_u64() {
+        let major = (n >> 24) & 0xFF;
+        let minor = (n >> 16) & 0xFF;
+        if major > 0 {
+            return Some(format!("{}.{:02}", major, minor));
+        }
+    }
+    None
+}
+
+fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
     let mut ppsa = None;
     let mut local_title = None;
     let mut local_icon = None;
+    let mut app_ver = None;
+    let mut sdk_ver = None;
+    let mut min_firmware = None;
+    let mut content_id = None;
+    let mut category = None;
+    let mut has_local_icon = false;
 
     if path_buf.is_dir() {
         // 1. Check for sce_sys/param.json or param.json
@@ -396,6 +469,21 @@ fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<
                             .and_then(|v| v.as_str()) {
                             local_title = Some(tname.to_string());
                         }
+                        if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).and_then(|v| v.as_str()) {
+                            app_ver = Some(aver.to_string());
+                        }
+                        if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")) {
+                            sdk_ver = format_fw_version(sver);
+                        }
+                        if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")) {
+                            min_firmware = format_fw_version(fw);
+                        }
+                        if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
+                            content_id = Some(cid.to_string());
+                        }
+                        if let Some(cat) = json.get("category").and_then(|v| v.as_str()) {
+                            category = Some(cat.to_string());
+                        }
                     }
                 }
                 break;
@@ -410,6 +498,7 @@ fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<
 
         for icon_path in &icon_candidates {
             if icon_path.exists() {
+                has_local_icon = true;
                 if let Ok(mut f) = fs::File::open(icon_path) {
                     let mut buf = Vec::new();
                     if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() && buf.len() <= 5 * 1024 * 1024 {
@@ -420,15 +509,27 @@ fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<
             }
         }
     } else {
-        // For PS5 container files (.ffpfsc, .exfat, .img, .bin, .dump)
+        // For all ShadowMountPlus and PS5 container files (.ffpkg, .exfat, .ffpfs, .ffpfsc, .pkg, .pfs, .ufs, .img, .bin, .dump, .raw, .iso, .dat, .vhd, .vhdx, .dsk, .bak, .part)
         let ext = path_buf.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        if matches!(ext.as_str(), "ffpfsc" | "exfat" | "img" | "bin" | "dump" | "raw") {
+        let is_known_container = matches!(
+            ext.as_str(),
+            "ffpkg" | "exfat" | "ffpfs" | "ffpfsc" | "pkg" | "pfs" | "ufs" | "img" | "bin" | "dump" | "raw" | "iso" | "dat" | "vhd" | "vhdx" | "dsk" | "bak" | "part" | ""
+        );
+
+        if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(mut file) = fs::File::open(path_buf) {
-                let mut buffer = vec![0u8; 8 * 1024 * 1024]; // Read 8MB header
+                let mut buffer = vec![0u8; 1024 * 1024]; // Read 1MB header efficiently
                 if let Ok(bytes_read) = file.read(&mut buffer) {
                     let slice = &buffer[..bytes_read];
-                    if let Ok(re_id) = regex::bytes::Regex::new(r#"(?i)"titleId"\s*:\s*"(PPSA\d{5})""#) {
-                        if let Some(caps) = re_id.captures(slice) {
+                    if let Some(caps) = RE_TITLE_ID.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                ppsa = Some(s.to_uppercase().replace("-", "").replace("_", "").replace(" ", ""));
+                            }
+                        }
+                    }
+                    if ppsa.is_none() {
+                        if let Some(caps) = RE_RAW_TITLE_ID.captures(slice) {
                             if let Some(m) = caps.get(1) {
                                 if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
                                     ppsa = Some(s.to_uppercase().replace("-", "").replace("_", "").replace(" ", ""));
@@ -436,29 +537,59 @@ fn inspect_ps5_item(path_buf: &Path) -> (Option<String>, Option<String>, Option<
                             }
                         }
                     }
-                    if let Ok(re_name) = regex::bytes::Regex::new(r#"(?i)"titleName"\s*:\s*"([^"]+)""#) {
-                        if let Some(caps) = re_name.captures(slice) {
-                            if let Some(m) = caps.get(1) {
-                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                    local_title = Some(s.to_string());
-                                }
+                    if let Some(caps) = RE_TITLE_NAME.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                local_title = Some(s.to_string());
+                            }
+                        }
+                    }
+                    if let Some(caps) = RE_APP_VER.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                app_ver = Some(s.to_string());
                             }
                         }
                     }
                 }
             }
         }
+
+        if category.is_none() {
+            let ext = path_buf.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            category = Some(match ext.as_str() {
+                "ffpkg" => "ShadowMount UFS (.ffpkg)".to_string(),
+                "exfat" => "ShadowMount exFAT (.exfat)".to_string(),
+                "ffpfsc" => "ShadowMount Container (.ffpfsc)".to_string(),
+                "ffpfs" | "pfs" => "ShadowMount PFS (.ffpfs)".to_string(),
+                "pkg" => "Package (.pkg)".to_string(),
+                "iso" | "img" | "bin" => "Disc Image".to_string(),
+                _ => "Container".to_string(),
+            });
+        }
     }
 
-    (ppsa, local_title, local_icon)
+    if path_buf.is_dir() && category.is_none() {
+        category = Some("Folder Dump".to_string());
+    }
+
+    Ps5InspectResult {
+        ppsa,
+        local_title,
+        local_icon,
+        app_ver,
+        sdk_ver,
+        min_firmware,
+        content_id,
+        category,
+        has_local_icon,
+    }
 }
 
 #[tauri::command]
 async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut files = Vec::new();
-        let re_filename = Regex::new(r"(?i)PPSA[-_ ]?\d{5}").unwrap();
-
         let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
         
         for entry in entries.flatten() {
@@ -469,11 +600,11 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                 }
                 
                 // 1. Inspect PS5 structure (sce_sys/param.json, containers)
-                let (inspected_ppsa, local_title, local_icon) = inspect_ps5_item(&path_buf);
+                let inspected = inspect_ps5_item(&path_buf);
                 
                 // 2. Fallback to filename regex if PPSA wasn't inside the container
-                let ppsa = inspected_ppsa.or_else(|| {
-                    re_filename.find(file_name).map(|mat| {
+                let ppsa = inspected.ppsa.or_else(|| {
+                    RE_FILENAME.find(file_name).map(|mat| {
                         mat.as_str().to_uppercase().replace("-", "").replace("_", "").replace(" ", "")
                     })
                 });
@@ -492,13 +623,44 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     ppsa,
                     size_bytes,
                     is_dir,
-                    local_title,
-                    local_icon,
+                    local_title: inspected.local_title,
+                    local_icon: inspected.local_icon,
+                    app_ver: inspected.app_ver,
+                    sdk_ver: inspected.sdk_ver,
+                    min_firmware: inspected.min_firmware,
+                    content_id: inspected.content_id,
+                    category: inspected.category,
+                    has_local_icon: inspected.has_local_icon,
                 });
             }
         }
         
         Ok(files)
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn open_in_file_manager(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        if !p.exists() {
+            return Err("Path does not exist".into());
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open").arg("-R").arg(&path).spawn();
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("explorer").arg(format!("/select,\"{}\"", path)).spawn();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let parent = p.parent().unwrap_or(p);
+            let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
+        }
+        Ok(())
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -561,6 +723,29 @@ struct TransferProgress {
     eta_seconds: f64,
 }
 
+#[cfg(target_os = "macos")]
+fn try_macos_clone(src: &Path, dst: &Path) -> bool {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    extern "C" {
+        fn clonefile(
+            src: *const std::os::raw::c_char,
+            dst: *const std::os::raw::c_char,
+            flags: u32,
+        ) -> std::os::raw::c_int;
+    }
+
+    if let (Ok(c_src), Ok(c_dst)) = (
+        CString::new(src.as_os_str().as_bytes()),
+        CString::new(dst.as_os_str().as_bytes()),
+    ) {
+        unsafe { clonefile(c_src.as_ptr(), c_dst.as_ptr(), 0) == 0 }
+    } else {
+        false
+    }
+}
+
 #[tauri::command]
 async fn transfer_items(
     app_handle: tauri::AppHandle,
@@ -571,8 +756,37 @@ async fn transfer_items(
         use tauri::Emitter;
         use std::time::Instant;
         
+        let target_path = Path::new(&target_dir);
+
+        #[cfg(target_os = "macos")]
+        {
+            let mut all_cloned = true;
+            for src_str in &sources {
+                let src_path = Path::new(src_str);
+                if let Some(name) = src_path.file_name() {
+                    let dest_item = target_path.join(name);
+                    if !dest_item.exists() && try_macos_clone(src_path, &dest_item) {
+                        continue;
+                    }
+                }
+                all_cloned = false;
+                break;
+            }
+
+            if all_cloned {
+                let _ = app_handle.emit("transfer-progress", TransferProgress {
+                    percent: 100.0,
+                    current_file: "APFS CoW Instant Clone Complete".to_string(),
+                    speed_bytes_per_sec: 10_000_000_000.0,
+                    eta_seconds: 0.0,
+                });
+                return Ok(());
+            }
+        }
+
         let mut options = fs_extra::dir::CopyOptions::new();
         options.copy_inside = true;
+        options.buffer_size = 16 * 1024 * 1024; // 16MB high-throughput PCIe SSD chunk buffer
         
         let mut last_emit = Instant::now();
         let mut last_copied_bytes = 0u64;
@@ -618,6 +832,7 @@ async fn transfer_items(
         };
 
         fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler)
+            .map(|_| ())
             .map_err(|e| e.to_string())
     }).await.map_err(|e| e.to_string())??;
     
@@ -690,7 +905,8 @@ pub fn run() {
             get_folder_size, 
             get_disk_space, 
             delete_file, 
-            transfer_items
+            transfer_items,
+            open_in_file_manager
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

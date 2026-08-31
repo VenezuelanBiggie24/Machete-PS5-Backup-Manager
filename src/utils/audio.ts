@@ -1,3 +1,18 @@
+// Global Mute State
+let isMuted = typeof window !== 'undefined' && localStorage.getItem('machete_audio_muted') === 'true';
+
+export const isAudioMuted = () => isMuted;
+
+export const setAudioMuted = (muted: boolean) => {
+  isMuted = muted;
+  try {
+    localStorage.setItem('machete_audio_muted', String(muted));
+  } catch (_) {}
+  if (muted) {
+    stopBgmTheme();
+  }
+};
+
 // PlayStation Legacy & PS5 UI Sound Engine (Synthesized via Web Audio API)
 const getAudioContext = (() => {
   let ctx: AudioContext | null = null;
@@ -27,41 +42,44 @@ const getNoiseBuffer = (ctx: AudioContext): AudioBuffer => {
   return cachedNoiseBuffer;
 };
 
-// Throttle hover sounds to avoid audio distortion during fast cursor movements
 let lastHoverTime = 0;
+let hoverPitchIndex = 0;
+const HOVER_PITCHES = [560, 580, 600, 620, 640, 600, 580];
 
-/**
- * PS Tile Navigation (Hover / Focus sound)
- * Warm, glassy acoustic click inspired by PS5 / PS4 tile focus.
- */
 export const playHoverSound = () => {
   try {
+    if (isMuted) return;
     const nowMs = performance.now();
-    if (nowMs - lastHoverTime < 45) return; // 45ms throttle
+    if (nowMs - lastHoverTime < 38) return; // 38ms silky throttle
     lastHoverTime = nowMs;
 
     const ctx = getAudioContext();
     const now = ctx.currentTime;
+    
+    // Slight pitch variation during sweeps for organic tactile feel
+    hoverPitchIndex = (hoverPitchIndex + 1) % HOVER_PITCHES.length;
+    const baseFreq = HOVER_PITCHES[hoverPitchIndex];
+
     const osc = ctx.createOscillator();
     const filter = ctx.createBiquadFilter();
     const gain = ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(520, now);
-    osc.frequency.exponentialRampToValueAtTime(140, now + 0.045);
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(180, now + 0.04);
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1400, now);
+    filter.frequency.setValueAtTime(1800, now);
 
-    gain.gain.setValueAtTime(0.035, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.05);
+    osc.stop(now + 0.045);
 
     osc.onended = () => {
       osc.disconnect();
@@ -72,11 +90,115 @@ export const playHoverSound = () => {
 };
 
 /**
+ * Authentic PlayStation 5 Game Focus / Selection Swell
+ * The iconic airy crystalline shimmer + resonant harmonic chime that plays
+ * when selecting a game on the PS5 home screen before starting it.
+ */
+export const playPS5GameSelectSound = () => {
+  try {
+    if (isMuted) return;
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+
+    // 1. Warm Sub-Bass Focus Thump (Controller / Console Haptic resonance)
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(110, now);
+    subOsc.frequency.exponentialRampToValueAtTime(35, now + 0.18);
+
+    subGain.gain.setValueAtTime(0.06, now);
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 0.2);
+
+    subOsc.onended = () => {
+      subOsc.disconnect();
+      subGain.disconnect();
+    };
+
+    // 2. The Airy Crystalline Whoosh Swell (Filtered pink noise sweep)
+    const noise = ctx.createBufferSource();
+    noise.buffer = getNoiseBuffer(ctx);
+    const noiseFilter = ctx.createBiquadFilter();
+    const noiseGain = ctx.createGain();
+
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(600, now);
+    noiseFilter.frequency.exponentialRampToValueAtTime(2400, now + 0.14);
+    noiseFilter.Q.setValueAtTime(3.0, now);
+
+    noiseGain.gain.setValueAtTime(0, now);
+    noiseGain.gain.linearRampToValueAtTime(0.025, now + 0.05);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+
+    noise.start(now);
+    noise.stop(now + 0.25);
+
+    noise.onended = () => {
+      try {
+        noise.disconnect();
+        noiseFilter.disconnect();
+        noiseGain.disconnect();
+      } catch (_) {}
+    };
+
+    // 3. Iconic PlayStation 5 Crystal Harmonic Chimes (Ethereal Chord: D5, A5, F#6, D7)
+    const ps5Harmonics = [
+      { freq: 587.33, vol: 0.04, delay: 0.00, dur: 0.45 }, // D5 (Fundamental base)
+      { freq: 880.00, vol: 0.05, delay: 0.02, dur: 0.55 }, // A5 (Fifth resonance)
+      { freq: 1479.98, vol: 0.035, delay: 0.04, dur: 0.60 }, // F#6 (Major third shimmer)
+      { freq: 2349.32, vol: 0.02, delay: 0.06, dur: 0.70 }, // D7 (Crystal sparkle)
+    ];
+
+    ps5Harmonics.forEach(({ freq, vol, delay, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      const startTime = now + delay;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      osc.frequency.linearRampToValueAtTime(freq + 4, startTime + dur);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3200, startTime);
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(vol, startTime + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + dur);
+
+      osc.onended = () => {
+        osc.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      };
+    });
+  } catch (_) {}
+};
+
+/**
  * PlayStation 'X' Confirm / Selection Chime
  * Dual harmonic glass chime (A5 + E6) with smooth decay.
  */
 export const playSelectSound = () => {
   try {
+    if (isMuted) return;
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
@@ -113,6 +235,7 @@ export const playSelectSound = () => {
  */
 export const playCancelSound = () => {
   try {
+    if (isMuted) return;
     const ctx = getAudioContext();
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
@@ -138,12 +261,52 @@ export const playCancelSound = () => {
   } catch (_) {}
 };
 
+// Background Theme Music (snd0.at9) Playback Manager
+let currentBgmAudio: HTMLAudioElement | null = null;
+let currentBgmPath: string | null = null;
+
+/**
+ * Play a game's authentic background soundtrack (snd0.at9 / preview theme)
+ * with a smooth loop and atmospheric volume.
+ */
+export const playBgmTheme = (audioDataUri: string, gamePath: string) => {
+  try {
+    if (isMuted) return;
+    if (currentBgmPath === gamePath && currentBgmAudio && !currentBgmAudio.paused) {
+      return;
+    }
+    stopBgmTheme();
+
+    const audio = new Audio(audioDataUri);
+    audio.loop = true;
+    audio.volume = 0.35;
+    audio.play().catch(() => {});
+    currentBgmAudio = audio;
+    currentBgmPath = gamePath;
+  } catch (_) {}
+};
+
+/**
+ * Stop any currently playing background game theme.
+ */
+export const stopBgmTheme = () => {
+  try {
+    if (currentBgmAudio) {
+      currentBgmAudio.pause();
+      currentBgmAudio.src = '';
+      currentBgmAudio = null;
+      currentBgmPath = null;
+    }
+  } catch (_) {}
+};
+
 /**
  * PS5 Atmospheric Boot / Scan Ambient Sweep
  * Dreamy multi-layered harmonic chord wash when scanning drives.
  */
 export const playScanSound = () => {
   try {
+    if (isMuted) return;
     const ctx = getAudioContext();
     const now = ctx.currentTime;
     // PS5 Ambient Chord: C5, E5, G5, B5, D6
@@ -190,6 +353,7 @@ export const playScanSound = () => {
  */
 export const playMacheteSound = () => {
   try {
+    if (isMuted) return;
     const ctx = getAudioContext();
     const now = ctx.currentTime;
 
@@ -247,6 +411,7 @@ export const playMacheteSound = () => {
  */
 export const playSuccessSound = () => {
   try {
+    if (isMuted) return;
     const ctx = getAudioContext();
     const now = ctx.currentTime;
     // Ascending crystal notes: E5, G#5, B5, E6
