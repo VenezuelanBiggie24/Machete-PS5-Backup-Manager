@@ -202,6 +202,14 @@
     "Corregido error de '0 GB' en el peso de carpetas.",
     "Añadido cálculo total de GB en la barra superior."
   ],
+  "changelog_v220_title": "v2.2.0 - Motor de Audio ATRAC9 y Diagnóstico Técnico",
+  "changelog_v220_items": [
+    "Decodificador nativo en Rust de Sony ATRAC9 para música de fondo oficial (snd0.at9).",
+    "Reproducción automática del soundtrack del juego al ver detalles, con controles de volumen y fade-in.",
+    "Detección exacta del SDK de compilación (SDK 9.00, SDK 8.50, SDK 7.61) y firmware mínimo requerido.",
+    "Extracción real de la versión del juego (appVer) con inspección profunda de cabeceras de 4MB.",
+    "Consolidación y síntesis de versiones de lanzamiento con documentación profesional sin emojis."
+  ],
   "changelog_v210_title": "v2.1.0 - Next-Gen Update",
   "changelog_v210_items": [
     "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",

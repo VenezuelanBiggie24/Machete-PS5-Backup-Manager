@@ -147,6 +147,16 @@
   "mute_toggle_mute": "Mute Audio",
   "changelogs": [
     {
+      "version": "v2.2.0 - Pure ATRAC9 Audio Engine & Diagnostic Update",
+      "items": [
+        "Integrated pure Rust ATRAC9 native audio decoder for PlayStation 5 and PS4 snd0.at9 soundtracks.",
+        "Automatic game soundtrack preview playback in Game Details modal with interactive BGM controls and volume fade.",
+        "Exact compilation SDK detection (SDK 9.00, SDK 8.50, SDK 7.61, etc.) and minimum system software requirements.",
+        "Real game application version extraction (appVer) with 4MB container header inspection probe.",
+        "Synthesized release milestones and fully sanitized documentation across all platforms."
+      ]
+    },
+    {
       "version": "v2.1.2 - Audio Engine Hotfix & Synthesis Optimization",
       "items": [
         "Resolved WebKit AudioContext zero-value exponential curve exception.",
