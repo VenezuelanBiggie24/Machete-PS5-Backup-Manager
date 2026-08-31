@@ -23,6 +23,15 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.1.1 - Refinamiento de UI, Audio y Menú macOS",
+      "items": [
+        "Corregido error de sobreposición de encabezado en carátulas para visualización 4K a sangre completa.",
+        "Desbloqueo de AudioContext en WebKit/macOS con acústica de PS5 calibrada al pasar el cursor y seleccionar juegos.",
+        "Añadido selector interactivo de idioma en Ajustes con inglés predeterminado.",
+        "Reorganización limpia de la barra superior e integración de opciones en el menú nativo de macOS (Acerca de, Actualizaciones, Ajustes Cmd+,)."
+      ]
+    },
+    {
       "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
       "items": [
         "CDN Global Propietaria de Ultra-Baja Latencia: Servidor Edge en Cloudflare R2 con catálogo maestro de más de 11,940 carátulas verticales 4K (3:4) con calque oficial blanco de PS5, resolviendo portadas a nivel mundial en <15ms sin depender de servidores de terceros.",

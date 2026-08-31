@@ -147,6 +147,15 @@
   ],
   "changelogs": [
     {
+      "version": "v2.1.1 - UI Refinement, Audio & macOS Menu",
+      "items": [
+        "Fixed box art double-header superposition defect for full-bleed 4K master covers.",
+        "Unlocked WebKit/Safari AudioContext with enhanced PS5 acoustic synthesis on card hover and select.",
+        "Added dynamic multi-language dropdown in Settings with English (en) set as the default.",
+        "Streamlined top bar layout and integrated native macOS application menu items (About, Check for Updates, Settings Cmd+,)."
+      ]
+    },
+    {
       "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
       "items": [
         "Proprietary Low-Latency Global Edge CDN: High-speed Cloudflare R2 Edge server hosting over 11,940 vertical 4K master covers (3:4 aspect ratio) with official white PS5 headers, resolving covers globally in <15ms without third-party dependencies.",

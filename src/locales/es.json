@@ -147,6 +147,15 @@
   "mute_toggle_mute": "Silenciar Audio",
   "changelogs": [
     {
+      "version": "v2.1.1 - Refinamiento de UI, Audio y Menú macOS",
+      "items": [
+        "Corregido error de sobreposición de encabezado en carátulas para visualización 4K a sangre completa.",
+        "Desbloqueo de AudioContext en WebKit/macOS con acústica de PS5 calibrada al pasar el cursor y seleccionar juegos.",
+        "Añadido selector interactivo de idioma en Ajustes con inglés predeterminado.",
+        "Reorganización limpia de la barra superior e integración de opciones en el menú nativo de macOS (Acerca de, Actualizaciones, Ajustes Cmd+,)."
+      ]
+    },
+    {
       "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
       "items": [
         "Proprietary Low-Latency Global Edge CDN: High-speed Cloudflare R2 Edge server hosting over 11,940 vertical 4K master covers (3:4 aspect ratio) with official white PS5 headers, resolving covers globally in <15ms without third-party dependencies.",
