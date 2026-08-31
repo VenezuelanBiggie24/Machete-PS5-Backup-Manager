@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
@@ -143,6 +143,48 @@ export default function App() {
   const [updateDownloading, setUpdateDownloading] = useState(false);
   const [updateProgress, setUpdateProgress] = useState(0);
   const [updateDone, setUpdateDone] = useState(false);
+
+  // Search, filter & sorting states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [regionFilter, setRegionFilter] = useState<'ALL' | 'US' | 'EU' | 'JP' | 'OTHER'>('ALL');
+  const [sortBy, setSortBy] = useState<'NAME' | 'SIZE_DESC' | 'SIZE_ASC'>('NAME');
+
+  const filteredFiles = useMemo(() => {
+    return files
+      .filter((file) => {
+        const meta = file.ppsa ? metadata[file.ppsa] : null;
+        const title = (meta?.title || file.name).toLowerCase();
+        const ppsa = (file.ppsa || '').toLowerCase();
+        const search = searchTerm.toLowerCase().trim();
+
+        // 1. Search Query Filter
+        if (search && !title.includes(search) && !ppsa.includes(search)) {
+          return false;
+        }
+
+        // 2. Region Filter
+        if (regionFilter !== 'ALL') {
+          const region = meta?.region_flag || '';
+          if (regionFilter === 'US' && !region.includes('🇺🇸')) return false;
+          if (regionFilter === 'EU' && !region.includes('🇪🇺')) return false;
+          if (regionFilter === 'JP' && !region.includes('🇯🇵')) return false;
+          if (regionFilter === 'OTHER' && (region.includes('🇺🇸') || region.includes('🇪🇺') || region.includes('🇯🇵'))) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'SIZE_DESC') {
+          return (b.size_bytes || 0) - (a.size_bytes || 0);
+        }
+        if (sortBy === 'SIZE_ASC') {
+          return (a.size_bytes || 0) - (b.size_bytes || 0);
+        }
+        const metaA = a.ppsa ? metadata[a.ppsa]?.title : a.name;
+        const metaB = b.ppsa ? metadata[b.ppsa]?.title : b.name;
+        return (metaA || a.name).localeCompare(metaB || b.name);
+      });
+  }, [files, metadata, searchTerm, regionFilter, sortBy]);
 
   // Fetch the real app version on mount
   useEffect(() => {
@@ -586,15 +628,86 @@ export default function App() {
         <div className="px-6 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30 backdrop-blur-md sticky top-0 z-20">
           <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
             <Settings className="w-4 h-4 text-cyan-500" />
-            {currentDir ? currentDir.split('/').pop() || currentDir : t("drag_drop")}
+            {currentDir ? currentDir.split(/[/\\]/).pop() || currentDir : t("drag_drop")}
           </h2>
           <span className="text-xs text-slate-500 font-mono bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
-            {files.length} ITEMS • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
+            {filteredFiles.length} / {files.length} TITLES • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
           </span>
           {/* Cyberpunk Grid Background */}
           <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#00f0ff 1px, transparent 1px), linear-gradient(90deg, #00f0ff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
         </div>
       </div>
+
+      {/* Search & Filter Toolbar */}
+      {currentDir && files.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-3 items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800 backdrop-blur-md">
+          {/* Search Input */}
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 text-cyan-400/60 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search title, PPSA code..."
+              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-500/80 transition-colors font-mono"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Region Filter Chips */}
+          <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-800 text-[11px] font-mono">
+            <button
+              onClick={() => setRegionFilter('ALL')}
+              className={`px-2.5 py-1 rounded transition-colors ${regionFilter === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              ALL
+            </button>
+            <button
+              onClick={() => setRegionFilter('US')}
+              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'US' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              🇺🇸 US
+            </button>
+            <button
+              onClick={() => setRegionFilter('EU')}
+              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'EU' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              🇪🇺 EU
+            </button>
+            <button
+              onClick={() => setRegionFilter('JP')}
+              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${regionFilter === 'JP' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              🇯🇵 JP
+            </button>
+          </div>
+
+          {/* Sort Selector */}
+          <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-lg border border-slate-800 text-[11px] font-mono">
+            <button
+              onClick={() => setSortBy('NAME')}
+              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${sortBy === 'NAME' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+              title="Sort by Name (A-Z)"
+            >
+              <ArrowDownAZ className="w-3.5 h-3.5" /> A-Z
+            </button>
+            <button
+              onClick={() => setSortBy('SIZE_DESC')}
+              className={`px-2.5 py-1 rounded transition-colors flex items-center gap-1 ${sortBy === 'SIZE_DESC' ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'}`}
+              title="Sort by Size (Largest first)"
+            >
+              <ArrowDown01 className="w-3.5 h-3.5" /> Size
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid of Files */}
       {currentDir && (
@@ -602,7 +715,7 @@ export default function App() {
           
           <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 transition-opacity duration-300 ${isLoading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
           <AnimatePresence>
-            {files.map((file) => {
+            {filteredFiles.map((file) => {
               const meta = file.ppsa ? metadata[file.ppsa] : null;
               return (
                 <GameCard 

@@ -42,11 +42,54 @@ struct CustomMeta {
 }
 
 fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
-    let app_data = app.path().app_data_dir().unwrap();
+    let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     if !app_data.exists() {
         let _ = fs::create_dir_all(&app_data);
     }
     app_data.join("machete_custom_meta.json")
+}
+
+fn get_covers_cache_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let covers_dir = app_data.join("cache").join("covers");
+    if !covers_dir.exists() {
+        let _ = fs::create_dir_all(&covers_dir);
+    }
+    covers_dir
+}
+
+fn get_cached_cover_base64(app: &tauri::AppHandle, clean_ppsa: &str) -> Option<String> {
+    let cache_dir = get_covers_cache_dir(app);
+    for ext in &["webp", "png", "jpg", "jpeg"] {
+        let file_path = cache_dir.join(format!("{}.{}", clean_ppsa, ext));
+        if file_path.exists() {
+            if let Ok(mut f) = fs::File::open(&file_path) {
+                let mut buffer = Vec::new();
+                if f.read_to_end(&mut buffer).is_ok() && !buffer.is_empty() {
+                    let mime = match *ext {
+                        "webp" => "image/webp",
+                        "png" => "image/png",
+                        _ => "image/jpeg",
+                    };
+                    return Some(format!("data:{};base64,{}", mime, general_purpose::STANDARD.encode(&buffer)));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn save_cover_to_cache(app: &tauri::AppHandle, clean_ppsa: &str, image_bytes: &[u8], content_type: &str) {
+    let cache_dir = get_covers_cache_dir(app);
+    let ext = if content_type.contains("webp") {
+        "webp"
+    } else if content_type.contains("png") {
+        "png"
+    } else {
+        "jpg"
+    };
+    let file_path = cache_dir.join(format!("{}.{}", clean_ppsa, ext));
+    let _ = fs::write(file_path, image_bytes);
 }
 
 fn load_custom_metadata(app: &tauri::AppHandle) -> Result<HashMap<String, CustomMeta>, String> {
@@ -256,7 +299,32 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
             }
         }
         
-        // Apply manual overrides if they exist
+        // 5. Cache the downloaded cover image locally on disk for future instant offline retrieval
+        if let Some(ref cover_url) = final_cover {
+            if cover_url.starts_with("http") {
+                if let Ok(img_res) = client.get(cover_url).send() {
+                    let content_type = img_res.headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("image/jpeg")
+                        .to_string();
+                    if let Ok(bytes) = img_res.bytes() {
+                        if !bytes.is_empty() {
+                            save_cover_to_cache(&app, &clean_ppsa, &bytes, &content_type);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply cached local cover if network is offline or cover wasn't found online
+        if final_cover.is_none() {
+            if let Some(cached) = get_cached_cover_base64(&app, &clean_ppsa) {
+                final_cover = Some(cached);
+            }
+        }
+
+        // Apply manual user overrides if they exist
         if let Some(custom) = custom_entry {
             if let Some(t) = custom.title {
                 final_name = t;
@@ -266,7 +334,7 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
             }
         }
         
-        // 5. Return what we have
+        // 6. Return what we have
         Ok(MetadataInfo { title: final_name, cover: final_cover, region_flag: final_region })
     }).await;
     
