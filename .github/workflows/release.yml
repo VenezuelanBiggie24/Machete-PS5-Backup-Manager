@@ -54,7 +54,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Machete PS5 Backup Manager v__VERSION__'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
