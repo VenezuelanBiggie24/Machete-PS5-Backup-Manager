@@ -208,7 +208,7 @@
     "Reproducción automática del soundtrack del juego al ver detalles, con controles de volumen y fade-in.",
     "Detección exacta del SDK de compilación (SDK 9.00, SDK 8.50, SDK 7.61) y firmware mínimo requerido.",
     "Extracción real de la versión del juego (appVer) con inspección profunda de cabeceras de 4MB.",
-    "Consolidación y síntesis de versiones de lanzamiento con documentación profesional sin emojis."
+    "Optimización de estabilidad del sistema, consolidación de versiones mayores y documentación técnica actualizada."
   ],
   "changelog_v210_title": "v2.1.0 - Next-Gen Update",
   "changelog_v210_items": [
