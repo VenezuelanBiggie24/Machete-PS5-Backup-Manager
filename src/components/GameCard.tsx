@@ -204,9 +204,9 @@ export function GameCard({
 
           {/* Badges in bottom overlay */}
           <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-center z-10 bg-gradient-to-t from-black/85 to-transparent">
-            {file.min_firmware ? (
+            {(file.min_firmware || file.sdk_ver) ? (
               <span className="bg-purple-950/90 text-purple-300 text-[10px] font-mono px-1.5 py-0.5 rounded border border-purple-500/40 flex items-center gap-1 shadow-sm">
-                <ShieldCheck className="w-3 h-3" /> FW {file.min_firmware}+
+                <ShieldCheck className="w-3 h-3" /> FW {file.min_firmware || file.sdk_ver}+
               </span>
             ) : <div />}
             {file.ppsa && (

@@ -307,44 +307,7 @@ export const playCancelSound = () => {
   }
 };
 
-// Background Theme Music (snd0.at9) Playback Manager
-let currentBgmAudio: HTMLAudioElement | null = null;
-let currentBgmPath: string | null = null;
 
-/**
- * Play a game's authentic background soundtrack (snd0.at9 / preview theme)
- * with a smooth loop and atmospheric volume.
- */
-export const playBgmTheme = (audioDataUri: string, gamePath: string) => {
-  try {
-    if (isMuted) return;
-    if (currentBgmPath === gamePath && currentBgmAudio && !currentBgmAudio.paused) {
-      return;
-    }
-    stopBgmTheme();
-
-    const audio = new Audio(audioDataUri);
-    audio.loop = true;
-    audio.volume = 0.35;
-    audio.play().catch(() => {});
-    currentBgmAudio = audio;
-    currentBgmPath = gamePath;
-  } catch (_) {}
-};
-
-/**
- * Stop any currently playing background game theme.
- */
-export const stopBgmTheme = () => {
-  try {
-    if (currentBgmAudio) {
-      currentBgmAudio.pause();
-      currentBgmAudio.src = '';
-      currentBgmAudio = null;
-      currentBgmPath = null;
-    }
-  } catch (_) {}
-};
 
 /**
  * PS5 Atmospheric Boot / Scan Ambient Sweep
@@ -506,4 +469,100 @@ export const playSuccessSound = () => {
     console.error("playSuccessSound error:", e);
   }
 };
+
+/**
+ * PS5 Game Background Music / Soundtrack Player (snd0.at9)
+ */
+let currentBgmAudio: HTMLAudioElement | null = null;
+let currentBgmPath: string | null = null;
+let bgmFadeInterval: any = null;
+
+export const isBgmPlaying = () => currentBgmAudio !== null && !currentBgmAudio.paused;
+
+export const playBgmTheme = (audioDataUri: string, gamePath?: string) => {
+  try {
+    if (isMuted) return;
+    if (currentBgmAudio) {
+      if (currentBgmPath === gamePath && !currentBgmAudio.paused) {
+        return; // Already playing this game's theme
+      }
+      stopBgmTheme(false);
+    }
+
+    const audio = new Audio(audioDataUri);
+    audio.loop = true;
+    audio.volume = 0.01;
+    currentBgmAudio = audio;
+    currentBgmPath = gamePath || null;
+
+    audio.play().then(() => {
+      // Smooth fade-in
+      if (bgmFadeInterval) clearInterval(bgmFadeInterval);
+      let vol = 0.01;
+      const targetVol = 0.65;
+      bgmFadeInterval = setInterval(() => {
+        if (!currentBgmAudio || currentBgmAudio.paused) {
+          clearInterval(bgmFadeInterval);
+          return;
+        }
+        vol = Math.min(targetVol, vol + 0.08);
+        currentBgmAudio.volume = vol;
+        if (vol >= targetVol) {
+          clearInterval(bgmFadeInterval);
+        }
+      }, 50);
+    }).catch((e) => {
+      console.warn("BGM playback interrupted or not permitted:", e);
+    });
+  } catch (e) {
+    console.error("playBgmTheme error:", e);
+  }
+};
+
+export const stopBgmTheme = (smooth = true) => {
+  if (bgmFadeInterval) {
+    clearInterval(bgmFadeInterval);
+    bgmFadeInterval = null;
+  }
+  if (!currentBgmAudio) {
+    currentBgmPath = null;
+    return;
+  }
+
+  const audio = currentBgmAudio;
+  currentBgmAudio = null;
+  currentBgmPath = null;
+
+  if (!smooth) {
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = '';
+    } catch (_) {}
+    return;
+  }
+
+  try {
+    let vol = audio.volume;
+    const fade = setInterval(() => {
+      vol = Math.max(0, vol - 0.15);
+      try {
+        audio.volume = vol;
+      } catch (_) {}
+      if (vol <= 0.01) {
+        clearInterval(fade);
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.src = '';
+        } catch (_) {}
+      }
+    }, 40);
+  } catch (_) {
+    try {
+      audio.pause();
+    } catch (_) {}
+  }
+};
+
 

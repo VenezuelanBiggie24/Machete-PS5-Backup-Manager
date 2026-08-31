@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FolderOpen, ExternalLink, Copy, Check, HardDrive, Cpu, ShieldCheck, Tag, FileCode, Trash2, Edit3, Image as ImageIcon } from 'lucide-react';
+import { X, FolderOpen, ExternalLink, Copy, Check, HardDrive, Cpu, ShieldCheck, Tag, FileCode, Trash2, Edit3, Image as ImageIcon, Volume2, VolumeX } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { playSelectSound, playCancelSound, playHoverSound } from '../utils/audio';
+import { playSelectSound, playCancelSound, playHoverSound, playPS5GameSelectSound, playBgmTheme, stopBgmTheme } from '../utils/audio';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -25,6 +25,47 @@ interface GameDetailsModalProps {
 
 export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover, onDelete, t }: GameDetailsModalProps) {
   const [copied, setCopied] = useState(false);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    // Attempt to load native game soundtrack (snd0.at9 / audio stream)
+    invoke<string | null>('get_game_audio', { path: game?.path })
+      .then((uri) => {
+        if (!active) return;
+        if (uri) {
+          setAudioUri(uri);
+          playBgmTheme(uri, game.path);
+          setIsPlayingAudio(true);
+        } else {
+          // Play atmospheric PS5 game focus chime
+          playPS5GameSelectSound();
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch game audio:", err);
+        if (active) {
+          playPS5GameSelectSound();
+        }
+      });
+
+    return () => {
+      active = false;
+      stopBgmTheme();
+    };
+  }, [game?.path]);
+
+  const toggleSoundtrack = () => {
+    if (!audioUri) return;
+    if (isPlayingAudio) {
+      stopBgmTheme();
+      setIsPlayingAudio(false);
+    } else {
+      playBgmTheme(audioUri, game.path);
+      setIsPlayingAudio(true);
+    }
+  };
 
   if (!game) return null;
 
@@ -131,7 +172,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                     {displayTitle}
                   </h1>
                 </div>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                   <span className="font-mono text-xs px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-bold">
                     {game.ppsa || t("no_ppsa")}
                   </span>
@@ -145,10 +186,24 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                       {copied ? t("copied_to_clipboard") : t("copy_ppsa")}
                     </button>
                   )}
-                  {game.min_firmware && (
-                    <span className="font-mono text-xs px-2 py-1 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5" /> FW {game.min_firmware}+
+                  {(game.min_firmware || game.sdk_ver) && (
+                    <span className="font-mono text-xs px-2.5 py-1 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 font-bold flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> FW {game.min_firmware || game.sdk_ver}+
                     </span>
+                  )}
+                  {audioUri && (
+                    <button
+                      onClick={toggleSoundtrack}
+                      className={`px-2.5 py-1 rounded border text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all ${
+                        isPlayingAudio 
+                          ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]' 
+                          : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                      title="Audio Preview (snd0.at9)"
+                    >
+                      {isPlayingAudio ? <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+                      <span>{isPlayingAudio ? 'BGM: ON' : 'BGM: OFF'}</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -189,7 +244,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                   <div>
                     <div className="text-[10px] font-mono text-slate-400 uppercase">{t("spec_sdk")}</div>
                     <div className="text-xs font-mono font-bold text-white">
-                      {game.sdk_ver ? `SDK ${game.sdk_ver}` : 'N/A'}
+                      {game.sdk_ver ? `SDK ${game.sdk_ver}` : (game.min_firmware ? `SDK ${game.min_firmware}` : 'SDK 9.00')}
                     </div>
                   </div>
                 </div>

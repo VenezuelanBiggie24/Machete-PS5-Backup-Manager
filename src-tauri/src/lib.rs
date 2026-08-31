@@ -63,7 +63,23 @@ static RE_TITLE_NAME: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
 });
 
 static RE_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"appVer"\s*:\s*"([^"]+)""#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:appVer|app_ver|version)"\s*:\s*"([^"]+)""#).expect("valid regex")
+});
+
+static RE_SDK_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"(?:sdkVersion|sdk_version|sdk_ver)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
+});
+
+static RE_REQ_FW: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"(?:requiredSystemSoftwareVersion|required_system_software_version|min_fw|min_firmware)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
+});
+
+static RE_CONTENT_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"(?:contentId|content_id)"\s*:\s*"([^"]+)""#).expect("valid regex")
+});
+
+static RE_CATEGORY: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)"category"\s*:\s*"([^"]+)""#).expect("valid regex")
 });
 
 fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
@@ -415,24 +431,230 @@ struct Ps5InspectResult {
     has_local_icon: bool,
 }
 
-fn format_fw_version(val: &serde_json::Value) -> Option<String> {
-    if let Some(s) = val.as_str() {
-        if s.starts_with("0x") || s.starts_with("0X") {
-            if let Ok(num) = u64::from_str_radix(&s[2..], 16) {
-                let major = (num >> 24) & 0xFF;
-                let minor = (num >> 16) & 0xFF;
+fn clean_fw_version_str(s: &str) -> Option<String> {
+    let clean = s.trim().trim_matches('"').trim_matches('\'');
+    if clean.is_empty() || clean == "0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("N/A") {
+        return None;
+    }
+    
+    // Case 1: Dotted string like "09.00.00.00" or "08.50.00.00" or "9.00"
+    let without_0x = clean.strip_prefix("0x").or_else(|| clean.strip_prefix("0X")).unwrap_or(clean);
+    if without_0x.contains('.') {
+        let parts: Vec<&str> = without_0x.split('.').collect();
+        if parts.len() >= 2 {
+            let major = parts[0].trim_start_matches('0');
+            let major_str = if major.is_empty() { "0" } else { major };
+            let minor = parts[1];
+            return Some(format!("{}.{}", major_str, minor));
+        }
+        return Some(without_0x.to_string());
+    }
+
+    // Case 2: Hex string like "0x09000000" or "09008000" or "07610000" (8+ hex chars)
+    if without_0x.len() >= 4 {
+        if let Ok(num) = u64::from_str_radix(without_0x, 16) {
+            let major = if without_0x.len() >= 8 { (num >> 24) & 0xFF } else { (num >> 8) & 0xFF };
+            let minor = if without_0x.len() >= 8 { (num >> 16) & 0xFF } else { num & 0xFF };
+            if major > 0 || minor > 0 {
                 return Some(format!("{}.{:02}", major, minor));
             }
         }
-        return Some(s.to_string());
-    } else if let Some(n) = val.as_u64() {
-        let major = (n >> 24) & 0xFF;
-        let minor = (n >> 16) & 0xFF;
+    }
+
+    // Case 3: Decimal integer string like "150994944"
+    if let Ok(num) = clean.parse::<u64>() {
+        let major = (num >> 24) & 0xFF;
+        let minor = (num >> 16) & 0xFF;
         if major > 0 {
             return Some(format!("{}.{:02}", major, minor));
         }
     }
-    None
+
+    Some(clean.to_string())
+}
+
+fn format_fw_version(val: &serde_json::Value) -> Option<String> {
+    if let Some(s) = val.as_str() {
+        clean_fw_version_str(s)
+    } else if let Some(n) = val.as_u64() {
+        let major = (n >> 24) & 0xFF;
+        let minor = (n >> 16) & 0xFF;
+        if major > 0 {
+            Some(format!("{}.{:02}", major, minor))
+        } else {
+            clean_fw_version_str(&n.to_string())
+        }
+    } else {
+        None
+    }
+}
+
+fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
+    if at9_bytes.len() < 52 || &at9_bytes[0..4] != b"RIFF" || &at9_bytes[8..12] != b"WAVE" {
+        return None;
+    }
+
+    let mut pos = 12;
+    let mut fmt_data = None;
+    let mut audio_data = None;
+
+    while pos + 8 <= at9_bytes.len() {
+        let chunk_id = &at9_bytes[pos..pos + 4];
+        let chunk_size = u32::from_le_bytes(at9_bytes[pos + 4..pos + 8].try_into().unwrap_or([0; 4])) as usize;
+        let chunk_end = (pos + 8 + chunk_size).min(at9_bytes.len());
+
+        if chunk_id == b"fmt " {
+            fmt_data = Some(&at9_bytes[pos + 8..chunk_end]);
+        } else if chunk_id == b"data" {
+            audio_data = Some(&at9_bytes[pos + 8..chunk_end]);
+        }
+
+        pos = chunk_end;
+        if chunk_size % 2 != 0 {
+            pos += 1;
+        }
+    }
+
+    let fmt = fmt_data?;
+    let data = audio_data?;
+
+    let config_bytes: [u8; 4] = if fmt.len() >= 48 {
+        fmt[44..48].try_into().ok()?
+    } else if fmt.len() >= 44 {
+        fmt[40..44].try_into().ok()?
+    } else {
+        return None;
+    };
+
+    let mut decoder = atrac9dec::Atrac9Decoder::new(&config_bytes).ok()?;
+    let frame_bytes = decoder.config().frame_bytes as usize;
+    let frame_samples = decoder.config().frame_samples as usize;
+    let channels = decoder.config().channel_count as usize;
+    let sample_rate = decoder.config().sample_rate as u32;
+
+    if frame_bytes == 0 || channels == 0 || frame_samples == 0 || data.is_empty() {
+        return None;
+    }
+
+    let mut all_pcm: Vec<i16> = Vec::new();
+    let mut frame_pcm = vec![0i16; frame_samples * channels];
+    let mut offset = 0;
+
+    let max_frames = (sample_rate as usize * 30) / frame_samples;
+    let mut frames_decoded = 0;
+
+    while offset + frame_bytes <= data.len() && frames_decoded < max_frames {
+        let frame_slice = &data[offset..offset + frame_bytes];
+        if decoder.decode(frame_slice, &mut frame_pcm).is_ok() {
+            all_pcm.extend_from_slice(&frame_pcm);
+            frames_decoded += 1;
+        }
+        offset += frame_bytes;
+    }
+
+    if all_pcm.is_empty() {
+        return None;
+    }
+
+    let pcm_bytes_len = (all_pcm.len() * 2) as u32;
+    let mut wav = Vec::with_capacity(44 + pcm_bytes_len as usize);
+
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + pcm_bytes_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&(channels as u16).to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    let byte_rate = sample_rate * (channels as u32) * 2;
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    let block_align = (channels as u16) * 2;
+    wav.extend_from_slice(&block_align.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&pcm_bytes_len.to_le_bytes());
+    for s in all_pcm {
+        wav.extend_from_slice(&s.to_le_bytes());
+    }
+
+    Some(wav)
+}
+
+#[tauri::command]
+async fn get_game_audio(path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        if !p.exists() {
+            return Ok(None);
+        }
+
+        if p.is_dir() {
+            let candidates = [
+                (p.join("sce_sys").join("snd0.at9"), "at9"),
+                (p.join("snd0.at9"), "at9"),
+                (p.join("sce_sys").join("snd0.wav"), "wav"),
+                (p.join("snd0.wav"), "wav"),
+                (p.join("sce_sys").join("snd0.mp3"), "mp3"),
+                (p.join("snd0.mp3"), "mp3"),
+                (p.join("sce_sys").join("snd0.ogg"), "ogg"),
+                (p.join("snd0.ogg"), "ogg"),
+                (p.join("sce_sys").join("snd0.flac"), "flac"),
+                (p.join("snd0.flac"), "flac"),
+            ];
+
+            for (audio_path, kind) in &candidates {
+                if audio_path.exists() {
+                    if let Ok(mut f) = fs::File::open(audio_path) {
+                        let mut buf = Vec::new();
+                        if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                            if *kind == "at9" {
+                                if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
+                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
+                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
+                                }
+                            } else {
+                                let mime = match *kind {
+                                    "wav" => "audio/wav",
+                                    "mp3" => "audio/mpeg",
+                                    "ogg" => "audio/ogg",
+                                    "flac" => "audio/flac",
+                                    _ => "audio/wav",
+                                };
+                                let b64 = general_purpose::STANDARD.encode(&buf);
+                                return Ok(Some(format!("data:{};base64,{}", mime, b64)));
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            if let Ok(mut file) = fs::File::open(p) {
+                let mut buffer = vec![0u8; 16 * 1024 * 1024];
+                if let Ok(n) = file.read(&mut buffer) {
+                    let slice = &buffer[..n];
+                    for i in 0..slice.len().saturating_sub(64) {
+                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() && &slice[i+8..i+12] == b"WAVE" {
+                            let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
+                            let at9_slice = if i + riff_size <= slice.len() {
+                                &slice[i..i + riff_size]
+                            } else {
+                                &slice[i..]
+                            };
+                            if let Some(wav_bytes) = decode_at9_to_wav(at9_slice) {
+                                let b64 = general_purpose::STANDARD.encode(&wav_bytes);
+                                return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }).await.map_err(|e| e.to_string())?
 }
 
 fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
@@ -459,7 +681,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
                         if let Some(tid) = json.get("titleId").or_else(|| json.get("title_id")).and_then(|v| v.as_str()) {
                             let clean = tid.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
-                            if clean.starts_with("PPSA") {
+                            if clean.starts_with("PPSA") || clean.starts_with("CUSA") {
                                 ppsa = Some(clean);
                             }
                         }
@@ -469,10 +691,10 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             .and_then(|v| v.as_str()) {
                             local_title = Some(tname.to_string());
                         }
-                        if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).and_then(|v| v.as_str()) {
+                        if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).and_then(|v| v.as_str()) {
                             app_ver = Some(aver.to_string());
                         }
-                        if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")) {
+                        if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
                             sdk_ver = format_fw_version(sver);
                         }
                         if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")) {
@@ -518,7 +740,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
 
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(mut file) = fs::File::open(path_buf) {
-                let mut buffer = vec![0u8; 1024 * 1024]; // Read 1MB header efficiently
+                let mut buffer = vec![0u8; 4 * 1024 * 1024]; // Read 4MB header efficiently
                 if let Ok(bytes_read) = file.read(&mut buffer) {
                     let slice = &buffer[..bytes_read];
                     if let Some(caps) = RE_TITLE_ID.captures(slice) {
@@ -551,6 +773,34 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
+                    if let Some(caps) = RE_SDK_VER.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                sdk_ver = clean_fw_version_str(s);
+                            }
+                        }
+                    }
+                    if let Some(caps) = RE_REQ_FW.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                min_firmware = clean_fw_version_str(s);
+                            }
+                        }
+                    }
+                    if let Some(caps) = RE_CONTENT_ID.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                content_id = Some(s.to_string());
+                            }
+                        }
+                    }
+                    if let Some(caps) = RE_CATEGORY.captures(slice) {
+                        if let Some(m) = caps.get(1) {
+                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                category = Some(s.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -571,6 +821,18 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
 
     if path_buf.is_dir() && category.is_none() {
         category = Some("Folder Dump".to_string());
+    }
+
+    // Smart fallback for SDK / Minimum Firmware if not parsed from JSON
+    if sdk_ver.is_none() && min_firmware.is_some() {
+        sdk_ver = min_firmware.clone();
+    } else if min_firmware.is_none() && sdk_ver.is_some() {
+        min_firmware = sdk_ver.clone();
+    }
+
+    // Default App Version format if missing: 01.00
+    if app_ver.is_none() {
+        app_ver = Some("01.000.000".to_string());
     }
 
     Ps5InspectResult {
@@ -911,7 +1173,8 @@ pub fn run() {
             get_disk_space, 
             delete_file, 
             transfer_items,
-            open_in_file_manager
+            open_in_file_manager,
+            get_game_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
