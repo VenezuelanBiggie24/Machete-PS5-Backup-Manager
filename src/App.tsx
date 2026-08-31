@@ -591,6 +591,12 @@ export default function App() {
   };
 
   const checkForUpdates = async (silent = false) => {
+    if (updateDownloading) {
+      if (!silent) {
+        await message(t("update_downloading"), { title: t("update_title"), kind: "info" });
+      }
+      return;
+    }
     setUpdateChecking(true);
     try {
       const update = await check();
@@ -640,8 +646,10 @@ export default function App() {
           }
         });
         setUpdateDone(true);
+        setUpdateDownloading(false);
       }
     } catch (e) {
+      console.error("downloadAndInstall error:", e);
       await message(t("update_error"), { title: "Error", kind: "error" });
       setUpdateDownloading(false);
     }
