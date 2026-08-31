@@ -73,10 +73,13 @@ export const playHoverSound = () => {
   try {
     if (isMuted) return;
     const nowMs = performance.now();
-    if (nowMs - lastHoverTime < 45) return; // 45ms silky throttle for smooth card sweeping
+    if (nowMs - lastHoverTime < 35) return; // 35ms silky throttle for smooth card sweeping
     lastHoverTime = nowMs;
 
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
     
     // Organic tactile pitch sweep across game boxes
@@ -89,14 +92,14 @@ export const playHoverSound = () => {
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(baseFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.6, now + 0.05);
+    osc.frequency.linearRampToValueAtTime(baseFreq * 0.65, now + 0.05);
 
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2800, now);
+    filter.frequency.setValueAtTime(3200, now);
 
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.14, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.008);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 0.055);
 
     osc.connect(filter);
     filter.connect(gain);
@@ -110,7 +113,9 @@ export const playHoverSound = () => {
       filter.disconnect();
       gain.disconnect();
     };
-  } catch (_) {}
+  } catch (e) {
+    console.error("playHoverSound error:", e);
+  }
 };
 
 /**
@@ -122,17 +127,21 @@ export const playPS5GameSelectSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
 
     // 1. Warm Sub-Bass Focus Thump (Controller / Console Haptic resonance)
     const subOsc = ctx.createOscillator();
     const subGain = ctx.createGain();
     subOsc.type = 'sine';
-    subOsc.frequency.setValueAtTime(120, now);
-    subOsc.frequency.exponentialRampToValueAtTime(38, now + 0.22);
+    subOsc.frequency.setValueAtTime(130, now);
+    subOsc.frequency.linearRampToValueAtTime(35, now + 0.22);
 
-    subGain.gain.setValueAtTime(0.18, now);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+    subGain.gain.linearRampToValueAtTime(0.0001, now + 0.22);
 
     subOsc.connect(subGain);
     subGain.connect(ctx.destination);
@@ -152,12 +161,12 @@ export const playPS5GameSelectSound = () => {
 
     noiseFilter.type = 'bandpass';
     noiseFilter.frequency.setValueAtTime(700, now);
-    noiseFilter.frequency.exponentialRampToValueAtTime(2600, now + 0.16);
+    noiseFilter.frequency.linearRampToValueAtTime(2800, now + 0.15);
     noiseFilter.Q.setValueAtTime(2.5, now);
 
-    noiseGain.gain.setValueAtTime(0, now);
-    noiseGain.gain.linearRampToValueAtTime(0.08, now + 0.06);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+    noiseGain.gain.setValueAtTime(0.001, now);
+    noiseGain.gain.linearRampToValueAtTime(0.12, now + 0.06);
+    noiseGain.gain.linearRampToValueAtTime(0.0001, now + 0.26);
 
     noise.connect(noiseFilter);
     noiseFilter.connect(noiseGain);
@@ -176,10 +185,10 @@ export const playPS5GameSelectSound = () => {
 
     // 3. Iconic PlayStation 5 Crystal Harmonic Chimes (Ethereal Chord: D5, A5, F#6, D7)
     const ps5Harmonics = [
-      { freq: 587.33, vol: 0.15, delay: 0.00, dur: 0.50 }, // D5 (Fundamental base)
-      { freq: 880.00, vol: 0.16, delay: 0.02, dur: 0.60 }, // A5 (Fifth resonance)
-      { freq: 1479.98, vol: 0.12, delay: 0.04, dur: 0.65 }, // F#6 (Major third shimmer)
-      { freq: 2349.32, vol: 0.08, delay: 0.06, dur: 0.75 }, // D7 (Crystal sparkle)
+      { freq: 587.33, vol: 0.20, delay: 0.00, dur: 0.55 }, // D5 (Fundamental base)
+      { freq: 880.00, vol: 0.22, delay: 0.02, dur: 0.65 }, // A5 (Fifth resonance)
+      { freq: 1479.98, vol: 0.16, delay: 0.04, dur: 0.70 }, // F#6 (Major third shimmer)
+      { freq: 2349.32, vol: 0.10, delay: 0.06, dur: 0.80 }, // D7 (Crystal sparkle)
     ];
 
     ps5Harmonics.forEach(({ freq, vol, delay, dur }) => {
@@ -196,9 +205,9 @@ export const playPS5GameSelectSound = () => {
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(3600, startTime);
 
-      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.setValueAtTime(0.001, startTime);
       gain.gain.linearRampToValueAtTime(vol, startTime + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + dur);
+      gain.gain.linearRampToValueAtTime(0.0001, startTime + dur);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -213,7 +222,9 @@ export const playPS5GameSelectSound = () => {
         gain.disconnect();
       };
     });
-  } catch (_) {}
+  } catch (e) {
+    console.error("playPS5GameSelectSound error:", e);
+  }
 };
 
 /**
@@ -224,6 +235,9 @@ export const playSelectSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
 
     const playHarmonic = (freq: number, gainVol: number, decay: number) => {
@@ -232,9 +246,9 @@ export const playSelectSound = () => {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, now);
 
-      gain.gain.setValueAtTime(0, now);
+      gain.gain.setValueAtTime(0.001, now);
       gain.gain.linearRampToValueAtTime(gainVol, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + decay);
+      gain.gain.linearRampToValueAtTime(0.0001, now + decay);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -247,10 +261,12 @@ export const playSelectSound = () => {
       };
     };
 
-    playHarmonic(880, 0.16, 0.25);    // A5
-    playHarmonic(1318.5, 0.12, 0.32); // E6
-    playHarmonic(1760, 0.06, 0.38);   // A6
-  } catch (_) {}
+    playHarmonic(880, 0.20, 0.25);    // A5
+    playHarmonic(1318.5, 0.15, 0.32); // E6
+    playHarmonic(1760, 0.08, 0.38);   // A6
+  } catch (e) {
+    console.error("playSelectSound error:", e);
+  }
 };
 
 /**
@@ -261,16 +277,20 @@ export const playCancelSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
     osc.type = 'sine';
     osc.frequency.setValueAtTime(587.33, now); // D5
-    osc.frequency.exponentialRampToValueAtTime(329.63, now + 0.12); // E4
+    osc.frequency.linearRampToValueAtTime(329.63, now + 0.12); // E4
 
-    gain.gain.setValueAtTime(0.04, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.14, now + 0.01);
+    gain.gain.linearRampToValueAtTime(0.0001, now + 0.12);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -282,7 +302,9 @@ export const playCancelSound = () => {
       osc.disconnect();
       gain.disconnect();
     };
-  } catch (_) {}
+  } catch (e) {
+    console.error("playCancelSound error:", e);
+  }
 };
 
 // Background Theme Music (snd0.at9) Playback Manager
@@ -332,6 +354,9 @@ export const playScanSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
     // PS5 Ambient Chord: C5, E5, G5, B5, D6
     const chord = [523.25, 659.25, 783.99, 987.77, 1174.66];
@@ -349,11 +374,11 @@ export const playScanSound = () => {
 
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(2500, startTime);
-      filter.frequency.exponentialRampToValueAtTime(800, startTime + duration);
+      filter.frequency.linearRampToValueAtTime(800, startTime + duration);
 
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.03, startTime + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(0.08, startTime + 0.08);
+      gain.gain.linearRampToValueAtTime(0.0001, startTime + duration);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -368,7 +393,9 @@ export const playScanSound = () => {
         gain.disconnect();
       };
     });
-  } catch (_) {}
+  } catch (e) {
+    console.error("playScanSound error:", e);
+  }
 };
 
 /**
@@ -379,6 +406,9 @@ export const playMacheteSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
 
     // 1. Digital Blade Whoosh (Pre-allocated Filtered Noise Burst)
@@ -389,11 +419,12 @@ export const playMacheteSound = () => {
     filter.type = 'bandpass';
     filter.Q.value = 4.0;
     filter.frequency.setValueAtTime(3200, now);
-    filter.frequency.exponentialRampToValueAtTime(400, now + 0.12);
+    filter.frequency.linearRampToValueAtTime(400, now + 0.12);
 
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.08, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    noiseGain.gain.setValueAtTime(0.001, now);
+    noiseGain.gain.linearRampToValueAtTime(0.18, now + 0.01);
+    noiseGain.gain.linearRampToValueAtTime(0.0001, now + 0.12);
 
     whiteNoise.connect(filter);
     filter.connect(noiseGain);
@@ -406,10 +437,11 @@ export const playMacheteSound = () => {
     const subGain = ctx.createGain();
     subOsc.type = 'sine';
     subOsc.frequency.setValueAtTime(120, now);
-    subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.2);
+    subOsc.frequency.linearRampToValueAtTime(30, now + 0.2);
 
-    subGain.gain.setValueAtTime(0.09, now);
-    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.linearRampToValueAtTime(0.20, now + 0.02);
+    subGain.gain.linearRampToValueAtTime(0.0001, now + 0.2);
 
     subOsc.connect(subGain);
     subGain.connect(ctx.destination);
@@ -426,7 +458,9 @@ export const playMacheteSound = () => {
       subOsc.disconnect();
       subGain.disconnect();
     };
-  } catch (_) {}
+  } catch (e) {
+    console.error("playMacheteSound error:", e);
+  }
 };
 
 /**
@@ -437,6 +471,9 @@ export const playSuccessSound = () => {
   try {
     if (isMuted) return;
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const now = ctx.currentTime;
     // Ascending crystal notes: E5, G#5, B5, E6
     const notes = [659.25, 830.61, 987.77, 1318.51];
@@ -450,9 +487,9 @@ export const playSuccessSound = () => {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.045, startTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+      gain.gain.setValueAtTime(0.001, startTime);
+      gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+      gain.gain.linearRampToValueAtTime(0.0001, startTime + duration);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -465,5 +502,8 @@ export const playSuccessSound = () => {
         gain.disconnect();
       };
     });
-  } catch (_) {}
+  } catch (e) {
+    console.error("playSuccessSound error:", e);
+  }
 };
+
