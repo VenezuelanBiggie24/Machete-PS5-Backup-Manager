@@ -491,6 +491,10 @@ export default function App() {
       setShowAbout(true);
     });
 
+    const unlistenSettings = listen('menu-open-settings', () => {
+      setShowSettings(true);
+    });
+
     const unlistenCheckUpdate = listen('menu-check-update', () => {
       checkForUpdates();
     });
@@ -499,6 +503,7 @@ export default function App() {
       unlistenDropLegacy.then(f => f()).catch(console.error);
       unlistenDragDrop.then(f => f()).catch(console.error);
       unlistenAbout.then(f => f()).catch(console.error);
+      unlistenSettings.then(f => f()).catch(console.error);
       unlistenCheckUpdate.then(f => f()).catch(console.error);
     };
   }, []);
@@ -686,22 +691,6 @@ export default function App() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Check for Updates Button */}
-          <button 
-            onClick={() => checkForUpdates(false)}
-            disabled={updateChecking}
-            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold py-2 px-3 rounded-lg flex items-center gap-1.5 transition-all text-xs font-mono disabled:opacity-50"
-            title={t("update_check_btn")}
-            onMouseEnter={playHoverSound}
-          >
-            {updateChecking ? (
-              <div className="w-4 h-4 border-2 border-slate-800 border-t-cyan-400 rounded-full animate-spin"></div>
-            ) : (
-              <ArrowUpCircle className="w-4 h-4 text-cyan-400" />
-            )}
-            <span className="hidden xl:inline">{updateChecking ? t("update_checking") : t("update_check_btn")}</span>
-          </button>
-
           {/* Select Directory Button */}
           <button 
             onClick={handleSelectDirectory}
@@ -1077,26 +1066,29 @@ export default function App() {
                   <div className="font-semibold text-white">{t("author")}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Info className="text-cyan-400" />
-                <div>
-                  <div className="text-xs text-slate-400">{t("version_label")}</div>
-                  <div className="font-semibold text-white">v{appVersion}</div>
-                  <div className="text-[10px] text-cyan-500/80 mt-1">{t("license_info")}</div>
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900/50 border border-slate-800">
+                <div className="flex items-center gap-3">
+                  <Info className="text-cyan-400 w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs text-slate-400">{t("version_label")}</div>
+                    <div className="font-semibold text-white">v{appVersion}</div>
+                    <div className="text-[10px] text-cyan-500/80">{t("license_info")}</div>
+                  </div>
                 </div>
+                <button 
+                  onClick={() => checkForUpdates(false)}
+                  disabled={updateChecking}
+                  className="px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-all bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/40 flex items-center gap-1.5 disabled:opacity-50"
+                  title={t("update_check_btn")}
+                >
+                  {updateChecking ? (
+                    <div className="w-3.5 h-3.5 border-2 border-slate-800 border-t-cyan-400 rounded-full animate-spin"></div>
+                  ) : (
+                    <ArrowUpCircle className="w-3.5 h-3.5" />
+                  )}
+                  {updateChecking ? t("update_checking") : t("update_check_btn")}
+                </button>
               </div>
-              <button 
-                onClick={() => checkForUpdates(false)}
-                disabled={updateChecking}
-                className="flex items-center gap-2 w-full mt-2 px-3 py-2 text-sm font-semibold rounded-lg border transition-all bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/50 disabled:opacity-50 disabled:cursor-wait"
-              >
-                {updateChecking ? (
-                  <div className="w-4 h-4 border-2 border-slate-800 border-t-cyan-400 rounded-full animate-spin"></div>
-                ) : (
-                  <ArrowUpCircle className="w-4 h-4" />
-                )}
-                {updateChecking ? t("update_checking") : t("update_check_btn")}
-              </button>
               <a 
                 href="https://github.com/VenezuelanBiggie24/Machete-PS5-Backup-Manager" 
                 target="_blank" 

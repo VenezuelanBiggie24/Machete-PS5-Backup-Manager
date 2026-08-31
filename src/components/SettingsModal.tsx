@@ -1,6 +1,23 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Volume2, VolumeX, Globe, ArrowUpCircle, ShieldCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { playCancelSound, playHoverSound, playSelectSound } from '../utils/audio';
+
+const LANGUAGES = [
+  { code: 'en', label: 'English (Default)' },
+  { code: 'es', label: 'Español' },
+  { code: 'es_ve', label: 'Español (Venezuela)' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'pt_br', label: 'Português (Brasil)' },
+  { code: 'pt_pt', label: 'Português (Portugal)' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ja', label: '日本語' },
+  { code: 'zh', label: '简体中文' },
+  { code: 'ko', label: '한국어' },
+  { code: 'ar', label: 'العربية' },
+];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,7 +44,14 @@ export function SettingsModal({
   onOpenAbout,
   t,
 }: SettingsModalProps) {
+  const { i18n } = useTranslation();
+
   if (!isOpen) return null;
+
+  const handleLanguageChange = (code: string) => {
+    i18n.changeLanguage(code);
+    localStorage.setItem('machete_lang', code);
+  };
 
   return (
     <AnimatePresence>
@@ -131,7 +155,7 @@ export function SettingsModal({
               </button>
             </div>
 
-            {/* 3. Language Display (Fixed to Español Venezuela) */}
+            {/* 3. Language Selector */}
             <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 transition-colors">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mt-0.5">
@@ -142,14 +166,25 @@ export function SettingsModal({
                     {t("settings_language")}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Idioma oficial del sistema
+                    {t("settings_language")}
                   </p>
                 </div>
               </div>
 
-              <div className="px-3 py-1.5 rounded-lg bg-slate-950 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                Español (VE)
-              </div>
+              <select
+                value={i18n.language || 'en'}
+                onChange={(e) => {
+                  playSelectSound();
+                  handleLanguageChange(e.target.value);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-950 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold focus:outline-none focus:border-cyan-400 cursor-pointer shadow-sm max-w-[180px]"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-slate-900 text-white font-sans">
+                    {l.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 4. Quick Actions in Settings */}

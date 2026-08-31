@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, FolderOpen, ExternalLink, Copy, Check, HardDrive, Cpu, ShieldCheck, Tag, FileCode, Trash2, Edit3, Image as ImageIcon } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { playSelectSound, playCancelSound, playHoverSound } from '../utils/audio';
-import ps5HeaderMaster from '../assets/ps5_header_master.png';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -87,19 +86,12 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
           <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-6 custom-scrollbar">
             {/* Left: 4K Box Art Preview */}
             <div className="md:col-span-5 flex flex-col items-center">
-              <div className="w-full max-w-[280px] aspect-[3/4] rounded-xl overflow-hidden border border-cyan-500/40 shadow-2xl bg-slate-900 flex flex-col relative group">
-                {/* 4K PS5 Header */}
-                <div className="w-full bg-white select-none border-b border-black/5 z-10">
-                  <img src={ps5HeaderMaster} alt="PS5" className="w-full h-auto object-contain block pointer-events-none" />
-                </div>
-                {/* Artwork */}
-                <div className="flex-1 relative overflow-hidden bg-slate-950 flex items-center justify-center">
-                  {coverUrl ? (
-                    <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
-                  ) : (
-                    <ImageIcon className="w-12 h-12 text-slate-600" />
-                  )}
-                </div>
+              <div className="w-full max-w-[280px] aspect-[3/4] rounded-xl overflow-hidden border border-cyan-500/40 shadow-2xl bg-slate-900 flex items-center justify-center relative group">
+                {coverUrl ? (
+                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                ) : (
+                  <ImageIcon className="w-12 h-12 text-slate-600" />
+                )}
               </div>
 
               {/* Quick Image Action Buttons */}

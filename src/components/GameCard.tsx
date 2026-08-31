@@ -2,7 +2,6 @@ import React from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { Trash2, Edit2, Image as ImageIcon, Check, Info, ShieldCheck } from 'lucide-react';
 import { playHoverSound, playSelectSound, playPS5GameSelectSound } from '../utils/audio';
-import ps5HeaderMaster from '../assets/ps5_header_master.png';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -134,14 +133,9 @@ export function GameCard({
         </div>
 
         {/* PS5 Retail Box Container */}
-        <div className="aspect-[3/4] bg-slate-950 relative overflow-hidden flex flex-col">
-          {/* Calqued Master 4K PS5 Top Banner */}
-          <div className="w-full bg-white select-none overflow-hidden flex-shrink-0 z-10 border-b border-black/5">
-            <img src={ps5HeaderMaster} alt="PS5" className="w-full h-auto object-contain block pointer-events-none" />
-          </div>
-
+        <div className="aspect-[3/4] bg-slate-950 relative overflow-hidden flex flex-col rounded-t-xl">
           {/* Cover Artwork */}
-          <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-slate-900">
+          <div className="w-full h-full relative overflow-hidden flex items-center justify-center bg-slate-900">
             {meta?.cover && !imgError ? (
               <img
                 src={meta.cover}

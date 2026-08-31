@@ -852,12 +852,15 @@ pub fn run() {
                 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
                 use tauri::Emitter;
 
-                let check_update_item = MenuItemBuilder::with_id("check_update", "Buscar actualizaciones...").build(app)?;
-                let about_item = MenuItemBuilder::with_id("open_about", "Acerca de Machete").build(app)?;
+                let about_item = MenuItemBuilder::with_id("open_about", "About Machete PS5 Backup Manager").build(app)?;
+                let check_update_item = MenuItemBuilder::with_id("check_update", "Check for Updates...").build(app)?;
+                let settings_item = MenuItemBuilder::with_id("open_settings", "Settings...").accelerator("CmdOrCtrl+,").build(app)?;
                 
                 let app_submenu = SubmenuBuilder::new(app, "Machete")
                     .item(&about_item)
                     .item(&check_update_item)
+                    .separator()
+                    .item(&settings_item)
                     .separator()
                     .item(&PredefinedMenuItem::services(app, None)?)
                     .separator()
@@ -892,6 +895,8 @@ pub fn run() {
                         let _ = handle.emit("menu-check-update", ());
                     } else if event.id() == "open_about" {
                         let _ = handle.emit("menu-open-about", ());
+                    } else if event.id() == "open_settings" {
+                        let _ = handle.emit("menu-open-settings", ());
                     }
                 });
             }

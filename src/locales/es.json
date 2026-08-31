@@ -144,5 +144,62 @@
   "storage_header_size_pct": "TAMAÑO & PORCENTAJE",
   "storage_of_total": "del total",
   "mute_toggle_unmute": "Activar Audio (PS5 UI + BGM)",
-  "mute_toggle_mute": "Silenciar Audio"
+  "mute_toggle_mute": "Silenciar Audio",
+  "changelogs": [
+    {
+      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
+      "items": [
+        "Proprietary Low-Latency Global Edge CDN: High-speed Cloudflare R2 Edge server hosting over 11,940 vertical 4K master covers (3:4 aspect ratio) with official white PS5 headers, resolving covers globally in <15ms without third-party dependencies.",
+        "Uncompromising Privacy & Absolute Anonymity: Zero telemetry, zero tracking, zero IP logging, and zero analytics. Generic browser User-Agent requests with zero fingerprinting. Your storage and backups remain 100% private and local.",
+        "Native & Exhaustive ShadowMountPlus Support: Comprehensive streaming inspection (1MB header probe) for all formats in the ShadowMountPlus ecosystem (.ffpkg UFS, .exfat 64KB, .ffpfs PFS, .ffpfsc MicroMount/MkPFS containers) and folder dumps.",
+        "3D Anti-Gravity Visual Engine: Floating inertial levitation, real-time 3D tilt with 1200px perspective, and cursor-reactive floor shadows.",
+        "Native PS5 Acoustic Synthesis & ATRAC9 Decoding: Original sinusoidal harmonic selection chime and native Rust snd0.at9 audio decoder to listen to official game soundtracks.",
+        "Interactive Storage Analyzer & Batch Mode: Treemap disk visualizer with heatmap rankings and floating batch action bar with keyboard shortcuts.",
+        "System Settings Panel: Full control to toggle 3D visual effects and acoustic audio with persistent local storage.",
+        "Rust 2021 Engine with opt-level=3 and LazyLock: High-throughput NVMe I/O transfers with instant macOS APFS Copy-On-Write clonefile acceleration."
+      ]
+    },
+    {
+      "version": "v2.0.2 - Cryptographic Auto-Updater",
+      "items": [
+        "Integrated Tauri v2 auto-updater with Minisign cryptographic verification.",
+        "Seamless in-app download and installation from GitHub Releases with live progress bar.",
+        "Real-time update notifications without restarting."
+      ]
+    },
+    {
+      "version": "v2.0.0-alpha.1",
+      "items": [
+        "New Cyberpunk interface (3D Cards, Hacker Console, Holographic Disk).",
+        "Asynchronous Tokio-powered I/O engine.",
+        "Dynamic directory size calculation."
+      ]
+    },
+    {
+      "version": "v1.2.3",
+      "items": [
+        "Fixed 0 GB size calculation bug on directory backups.",
+        "Added total GB indicator to top bar."
+      ]
+    },
+    {
+      "version": "v1.1.0",
+      "items": [
+        "Custom title and cover art override support.",
+        "Optimized default window dimensions.",
+        "SSD scan warning on high-capacity drives."
+      ]
+    },
+    {
+      "version": "v1.0.0 - Official Release",
+      "items": [
+        "Official release of Machete PS5 Backup Manager.",
+        "Automated high-resolution cover downloading.",
+        "PPSA badge placement in bottom corner.",
+        "Strict API request anonymization."
+      ]
+    }
+  ],
+  "delete": "Delete",
+  "delete_error": "Failed to delete backup"
 }
