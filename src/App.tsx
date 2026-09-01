@@ -384,8 +384,8 @@ export default function App() {
 
   const loadDirectory = async (dir: string) => {
     setIsLoading(true);
-      playScanSound();
-      addLog(`[INFO] Scanning directory: ${dir}`);
+    playScanSound();
+    addLog(`[INFO] Scanning directory: ${dir}`);
     try {
       const result = await invoke<FileItem[]>('read_directory', { path: dir });
       setFiles(result);
@@ -402,57 +402,49 @@ export default function App() {
       });
       setMetadata(prev => ({ ...initialMeta, ...prev }));
       
-      // Async folder size fetch
-      result.forEach(async (file) => {
+      // UNBLOCK UI INSTANTLY: Games appear immediately!
+      setIsLoading(false);
+
+      // 2. Background: Non-blocking disk space query
+      invoke<DiskInfo>('get_disk_space', { path: dir })
+        .then(disk => setDiskInfo(disk))
+        .catch(e => console.error("Could not get disk space", e));
+
+      // 3. Background: Non-blocking folder size calculations
+      result.forEach(file => {
         if (file.is_dir) {
-          try {
-            const size = await invoke<number>('get_folder_size', { path: file.path });
-            setFiles(prev => prev.map(f => f.path === file.path ? { ...f, size_bytes: size } : f));
-          } catch (e) {
-            console.error("Error getting folder size for", file.path, e);
-          }
+          invoke<number>('get_folder_size', { path: file.path })
+            .then(size => {
+              setFiles(prev => prev.map(f => f.path === file.path ? { ...f, size_bytes: size } : f));
+            })
+            .catch(e => console.error("Error getting folder size for", file.path, e));
         }
       });
 
-      try {
-        const disk = await invoke<DiskInfo>('get_disk_space', { path: dir });
-        setDiskInfo(disk);
-      } catch (e) {
-        console.error("Could not get disk space", e);
-      }
-
-      // 2. Asynchronously fetch high-resolution vertical covers from CDN / SerialStation
+      // 4. Background: Asynchronously stream high-resolution vertical covers from CDN / SerialStation
       const ppsas = result.filter(f => f.ppsa).map(f => f.ppsa!);
       const uniquePpsas = [...new Set(ppsas)];
       
-      const metaPromises = uniquePpsas.map(async (ppsa) => {
+      uniquePpsas.forEach(async (ppsa) => {
         try {
           const meta = await invoke<MetadataInfo>('fetch_metadata_rs', { ppsa });
-          return { ppsa, meta };
+          if (meta) {
+            setMetadata(prev => ({
+              ...prev,
+              [ppsa]: {
+                ...meta,
+                cover: meta.cover || prev[ppsa]?.cover || initialMeta[ppsa]?.cover,
+              }
+            }));
+          }
         } catch (e) {
-          console.error(`Failed to fetch metadata for ${ppsa}`, e);
-          return { ppsa, meta: null };
+          // Keep offline title / local icon on network fallback
         }
       });
-      
-      const metaResults = await Promise.all(metaPromises);
-      const newMeta: Record<string, MetadataInfo> = {};
-      metaResults.forEach(r => {
-        if (r.meta) {
-          // If online cover found, upgrade to it; otherwise retain local icon fallback
-          newMeta[r.ppsa] = {
-            ...r.meta,
-            cover: r.meta.cover || initialMeta[r.ppsa]?.cover,
-          };
-        }
-      });
-      
-      setMetadata(prev => ({ ...prev, ...newMeta }));
     } catch (e) {
       console.error(e);
-      await message(typeof e === 'string' ? e : "Error loading directory", { title: "Error", kind: "error" });
-    } finally {
       setIsLoading(false);
+      await message(typeof e === 'string' ? e : "Error loading directory", { title: "Error", kind: "error" });
     }
   };
 

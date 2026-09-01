@@ -1010,7 +1010,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(file) = fs::File::open(path_buf) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(64 * 1024 * 1024); // Complete 64MB deep read in a loop
+                let mut reader = file.take(2 * 1024 * 1024); // Ultra-fast 2MB header probe (instant directory scanning)
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
 
