@@ -51,7 +51,7 @@ static RE_FILENAME: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static RE_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"titleId"\s*:\s*"((?:PPSA|CUSA)\d{5})""#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:titleId|title_id)"\s*:\s*"((?:PPSA|CUSA)\d{5})""#).expect("valid regex")
 });
 
 static RE_RAW_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
@@ -59,19 +59,19 @@ static RE_RAW_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
 });
 
 static RE_TITLE_NAME: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"(?:titleName|title_name|defaultLanguageTitle)"\s*:\s*"([^"]+)""#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:titleName|title_name|defaultLanguageTitle|title)"\s*:\s*"([^"]+)""#).expect("valid regex")
 });
 
 static RE_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"(?:appVer|app_ver|version|masterVersion|titleVersion)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:appVer|app_ver|appVersion|app_version|version|masterVersion|master_version|titleVersion|title_version)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
 });
 
 static RE_SDK_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"(?:sdkVersion|sdk_version|sdk_ver)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:sdkVersion|sdk_version|sdk_ver|sdkVer|systemVersion|system_version|systemVer|system_ver)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
 });
 
 static RE_REQ_FW: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"(?:requiredSystemSoftwareVersion|required_system_software_version|min_fw|min_firmware)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:requiredSystemSoftwareVersion|required_system_software_version|min_fw|min_firmware|system_ver|systemVersion)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
 });
 
 static RE_CONTENT_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
@@ -82,18 +82,85 @@ static RE_CATEGORY: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
     regex::bytes::Regex::new(r#"(?i)"category"\s*:\s*"([^"]+)""#).expect("valid regex")
 });
 
-// Binary SFO table regexes for raw container formats (.pkg, .ffpkg, .exfat, .ffpfs, .ffpfsc, .iso, .raw)
-static RE_SFO_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)APP_VER[\x00=\s]+([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#).expect("valid regex")
-});
+#[derive(Default, Debug, Clone)]
+struct SfoData {
+    title_id: Option<String>,
+    title: Option<String>,
+    app_ver: Option<String>,
+    sdk_ver: Option<String>,
+    min_fw: Option<String>,
+    content_id: Option<String>,
+    category: Option<String>,
+}
 
-static RE_SFO_SDK_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)(?:SDK_VER|sdk_ver)[\x00=\s]+(?:0x)?([0-9a-fA-F\.]+)"#).expect("valid regex")
-});
+fn parse_binary_sfo(buffer: &[u8]) -> Option<SfoData> {
+    for i in 0..buffer.len().saturating_sub(20) {
+        if &buffer[i..i+4] == b"\x00PSF" {
+            let sfo_slice = &buffer[i..];
+            if sfo_slice.len() < 20 { continue; }
+            let key_table_offset = u32::from_le_bytes(sfo_slice[8..12].try_into().unwrap_or([0;4])) as usize;
+            let data_table_offset = u32::from_le_bytes(sfo_slice[12..16].try_into().unwrap_or([0;4])) as usize;
+            let entries_count = u32::from_le_bytes(sfo_slice[16..20].try_into().unwrap_or([0;4])) as usize;
 
-static RE_SFO_TITLE: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)TITLE[\x00=\s]+([A-Za-z0-9\s:_\-'\.]{3,64})"#).expect("valid regex")
-});
+            if key_table_offset >= sfo_slice.len() || data_table_offset >= sfo_slice.len() || entries_count > 256 {
+                continue;
+            }
+
+            let mut res = SfoData::default();
+            for e in 0..entries_count {
+                let entry_pos = 20 + e * 16;
+                if entry_pos + 16 > key_table_offset || entry_pos + 16 > sfo_slice.len() {
+                    break;
+                }
+                let key_offset = u16::from_le_bytes(sfo_slice[entry_pos..entry_pos+2].try_into().unwrap_or([0;2])) as usize;
+                let data_fmt = u16::from_le_bytes(sfo_slice[entry_pos+2..entry_pos+4].try_into().unwrap_or([0;2]));
+                let data_len = u32::from_le_bytes(sfo_slice[entry_pos+4..entry_pos+8].try_into().unwrap_or([0;4])) as usize;
+                let data_offset = u32::from_le_bytes(sfo_slice[entry_pos+12..entry_pos+16].try_into().unwrap_or([0;4])) as usize;
+
+                let abs_key_start = key_table_offset + key_offset;
+                if abs_key_start >= sfo_slice.len() { continue; }
+                let key_bytes = &sfo_slice[abs_key_start..];
+                let key_end = key_bytes.iter().position(|&b| b == 0).unwrap_or(key_bytes.len().min(64));
+                let key_name = std::str::from_utf8(&key_bytes[..key_end]).unwrap_or("");
+
+                let abs_data_start = data_table_offset + data_offset;
+                if abs_data_start + data_len > sfo_slice.len() { continue; }
+                let val_bytes = &sfo_slice[abs_data_start..abs_data_start + data_len];
+
+                if data_fmt == 0x0204 || data_fmt == 0x0004 {
+                    let str_end = val_bytes.iter().position(|&b| b == 0).unwrap_or(val_bytes.len());
+                    if let Ok(val_str) = std::str::from_utf8(&val_bytes[..str_end]) {
+                        let clean_val = val_str.trim();
+                        match key_name {
+                            "TITLE_ID" => res.title_id = Some(clean_val.to_uppercase().replace("-", "").replace("_", "")),
+                            "TITLE" => res.title = Some(clean_val.to_string()),
+                            "APP_VER" | "VERSION" => res.app_ver = format_ps5_app_version(clean_val),
+                            "SDK_VER" => res.sdk_ver = format_ps5_sdk_version(clean_val),
+                            "SYSTEM_VER" | "MIN_FW" => res.min_fw = format_ps5_sdk_version(clean_val),
+                            "CONTENT_ID" => res.content_id = Some(clean_val.to_string()),
+                            "CATEGORY" => res.category = Some(clean_val.to_string()),
+                            _ => {}
+                        }
+                    }
+                } else if data_fmt == 0x0404 && data_len >= 4 {
+                    let int_val = u32::from_le_bytes(val_bytes[0..4].try_into().unwrap_or([0;4]));
+                    let hex_val = format!("{:08x}", int_val);
+                    match key_name {
+                        "SYSTEM_VER" | "MIN_FW" => res.min_fw = format_ps5_sdk_version(&hex_val),
+                        "SDK_VER" => res.sdk_ver = format_ps5_sdk_version(&hex_val),
+                        "APP_VER" | "VERSION" => res.app_ver = format_ps5_app_version(&hex_val),
+                        _ => {}
+                    }
+                }
+            }
+
+            if res.title_id.is_some() || res.title.is_some() || res.app_ver.is_some() {
+                return Some(res);
+            }
+        }
+    }
+    None
+}
 
 fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
     let app_data = app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
@@ -446,13 +513,13 @@ struct Ps5InspectResult {
 
 fn format_ps5_sdk_version(raw: &str) -> Option<String> {
     let clean = raw.trim().trim_matches('"').trim_matches('\'');
-    if clean.is_empty() || clean == "0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("n/a") {
+    if clean.is_empty() || clean == "0" || clean == "0x0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("n/a") {
         return None;
     }
 
     let without_0x = clean.strip_prefix("0x").or_else(|| clean.strip_prefix("0X")).unwrap_or(clean);
 
-    // 1. Dotted format: e.g. "09.00.00.00", "08.50.00.00", "7.61"
+    // 1. Dotted format: e.g. "10.01.00.00", "09.00.00.00", "08.50.00.00", "7.61"
     if without_0x.contains('.') {
         let parts: Vec<&str> = without_0x.split('.').collect();
         if parts.len() >= 2 {
@@ -464,42 +531,45 @@ fn format_ps5_sdk_version(raw: &str) -> Option<String> {
         return Some(without_0x.to_string());
     }
 
-    // 2. Hex string: e.g. "09000000", "08500000", "07610000", "04030000", "0009000000000000"
-    if without_0x.chars().all(|c| c.is_ascii_hexdigit()) {
-        let digits = without_0x.trim_start_matches('0');
-        if digits.is_empty() {
-            return None;
-        }
-
-        // If 8+ hex chars (or 64-bit with 16 hex chars)
-        let pad8 = if without_0x.len() >= 16 {
-            &without_0x[0..8]
-        } else {
-            without_0x
-        };
-        let pad_str = format!("{:0>8}", pad8);
-        if pad_str.len() >= 4 {
-            let major_hex = &pad_str[0..2];
-            let minor_hex = &pad_str[2..4];
-            if let (Ok(maj), Ok(min)) = (u32::from_str_radix(major_hex, 16), u32::from_str_radix(minor_hex, 16)) {
-                if maj > 0 || min > 0 {
-                    return Some(format!("{}.{:02}", maj, min));
-                }
+    // 2. Check if clean is a pure decimal integer from JSON value (e.g. 268500992 -> 0x10010000)
+    let hex_candidate = if clean.chars().all(|c| c.is_ascii_digit()) && clean.len() >= 8 {
+        if let Ok(num) = clean.parse::<u64>() {
+            if num > 0xFFFFFFFF {
+                format!("{:016x}", num)
+            } else {
+                format!("{:08x}", num)
             }
+        } else {
+            without_0x.to_string()
         }
-    }
+    } else {
+        without_0x.to_string()
+    };
 
-    // 3. Decimal integer: e.g. 150994944 (0x09000000)
-    if let Ok(num) = clean.parse::<u64>() {
-        let maj32 = (num >> 24) & 0xFF;
-        let min32 = (num >> 16) & 0xFF;
-        if maj32 > 0 {
-            return Some(format!("{}.{:02}", maj32, min32));
-        }
-        let maj64 = (num >> 56) & 0xFF;
-        let min64 = (num >> 48) & 0xFF;
-        if maj64 > 0 {
-            return Some(format!("{}.{:02}", maj64, min64));
+    let hex = hex_candidate.as_str();
+
+    // 3. Hex / BCD parsing (PS5/PS4 SDK versions are BCD hex encoded: 0x09000000 -> 9.00, 0x10010000 -> 10.01)
+    if hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        let pad = if hex.len() >= 16 {
+            if hex.starts_with("00") {
+                &hex[2..10]
+            } else {
+                &hex[0..8]
+            }
+        } else {
+            hex
+        };
+
+        let pad_str = format!("{:0>8}", pad);
+        if pad_str.len() >= 4 {
+            let maj_str = &pad_str[0..2];
+            let min_str = &pad_str[2..4];
+            let maj_clean = maj_str.trim_start_matches('0');
+            let maj_final = if maj_clean.is_empty() { "0" } else { maj_clean };
+
+            if maj_final != "0" || min_str != "00" {
+                return Some(format!("{}.{}", maj_final, min_str));
+            }
         }
     }
 
@@ -535,26 +605,24 @@ fn format_ps5_app_version(raw: &str) -> Option<String> {
         return Some(without_0x.to_string());
     }
 
-    // 2. Hex format: e.g. "0x01000000" -> "1.00", "0x01020000" -> "1.02"
-    if without_0x.chars().all(|c| c.is_ascii_hexdigit()) {
-        let pad_str = format!("{:0>8}", without_0x);
-        if pad_str.len() >= 4 {
-            let major_hex = &pad_str[0..2];
-            let minor_hex = &pad_str[2..4];
-            if let (Ok(maj), Ok(min)) = (u32::from_str_radix(major_hex, 16), u32::from_str_radix(minor_hex, 16)) {
-                if maj > 0 || min > 0 {
-                    return Some(format!("{}.{:02}", maj, min));
-                }
-            }
+    // 2. Hex / BCD format: e.g. "0x01000000" -> "1.00", "0x01020000" -> "1.02"
+    let hex_candidate = if clean.chars().all(|c| c.is_ascii_digit()) && clean.len() >= 8 {
+        if let Ok(num) = clean.parse::<u64>() {
+            format!("{:08x}", num)
+        } else {
+            without_0x.to_string()
         }
-    }
+    } else {
+        without_0x.to_string()
+    };
 
-    // 3. Decimal integer: e.g. 16777216 -> 1.00
-    if let Ok(num) = clean.parse::<u64>() {
-        let maj = (num >> 24) & 0xFF;
-        let min = (num >> 16) & 0xFF;
-        if maj > 0 {
-            return Some(format!("{}.{:02}", maj, min));
+    if hex_candidate.chars().all(|c| c.is_ascii_hexdigit()) {
+        let pad_str = format!("{:0>8}", hex_candidate);
+        if pad_str.len() >= 4 {
+            let major_str = pad_str[0..2].trim_start_matches('0');
+            let major_final = if major_str.is_empty() { "1" } else { major_str };
+            let minor_str = &pad_str[2..4];
+            return Some(format!("{}.{}", major_final, minor_str));
         }
     }
 
@@ -612,7 +680,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
     let mut decoder_opt = None;
     if fmt.len() >= 4 {
-        let preferred_offsets = [44, 40, 36, 48, fmt.len().saturating_sub(4)];
+        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48];
         for &off in &preferred_offsets {
             if off + 4 <= fmt.len() {
                 if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
@@ -697,7 +765,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
-    if depth > 3 {
+    if depth > 5 {
         return None;
     }
     if let Ok(entries) = fs::read_dir(dir) {
@@ -706,7 +774,7 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
             let path = entry.path();
             let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
             if path.is_file() {
-                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") {
+                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") || name_lower.contains("audio") {
                     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
                     match ext.as_str() {
                         "at9" => return Some((path, "at9".to_string())),
@@ -723,7 +791,7 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
         }
         for sub in subdirs {
             let sub_name = sub.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
-            if sub_name.contains("sce_sys") || sub_name.contains("sys") || sub_name.contains("sound") || sub_name.contains("audio") || sub_name.contains("game") || sub_name.contains("ps5") || sub_name.contains("content") {
+            if sub_name.contains("sce_sys") || sub_name.contains("sys") || sub_name.contains("sound") || sub_name.contains("audio") || sub_name.contains("game") || sub_name.contains("ps5") || sub_name.contains("content") || sub_name.contains("app") || sub_name.contains("usrdir") {
                 if let Some(res) = find_game_audio_file(&sub, depth + 1) {
                     return Some(res);
                 }
@@ -767,7 +835,7 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
             }
         } else {
             if let Ok(mut file) = fs::File::open(p) {
-                let mut buffer = vec![0u8; 16 * 1024 * 1024];
+                let mut buffer = vec![0u8; 32 * 1024 * 1024]; // Read 32MB probe for audio discovery
                 if let Ok(n) = file.read(&mut buffer) {
                     let slice = &buffer[..n];
                     for i in 0..slice.len().saturating_sub(64) {
@@ -821,16 +889,17 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             if let Some(tname) = json.get("titleName")
                                 .or_else(|| json.get("title_name"))
                                 .or_else(|| json.get("defaultLanguageTitle"))
+                                .or_else(|| json.get("title"))
                                 .and_then(|v| v.as_str()) {
                                 local_title = Some(tname.to_string());
                             }
-                            if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
+                            if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("appVersion")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
                                 app_ver = format_json_val_app(aver);
                             }
-                            if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
+                            if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")).or_else(|| json.get("systemVersion")).or_else(|| json.get("system_ver")) {
                                 sdk_ver = format_json_val_sdk(sver);
                             }
-                            if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")) {
+                            if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")).or_else(|| json.get("min_firmware")) {
                                 min_firmware = format_json_val_sdk(fw);
                             }
                             if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
@@ -841,7 +910,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
-                } else if p.is_dir() && name_lower.contains("sce_sys") {
+                } else if p.is_dir() && (name_lower.contains("sce_sys") || name_lower.contains("sys")) {
                     let sub_param = p.join("param.json");
                     if sub_param.exists() {
                         if let Ok(content) = fs::read_to_string(&sub_param) {
@@ -855,16 +924,17 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                                 if let Some(tname) = json.get("titleName")
                                     .or_else(|| json.get("title_name"))
                                     .or_else(|| json.get("defaultLanguageTitle"))
+                                    .or_else(|| json.get("title"))
                                     .and_then(|v| v.as_str()) {
                                     local_title = Some(tname.to_string());
                                 }
-                                if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
+                                if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("appVersion")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
                                     app_ver = format_json_val_app(aver);
                                 }
-                                if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
+                                if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")).or_else(|| json.get("systemVersion")).or_else(|| json.get("system_ver")) {
                                     sdk_ver = format_json_val_sdk(sver);
                                 }
-                                if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")) {
+                                if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")).or_else(|| json.get("min_firmware")) {
                                     min_firmware = format_json_val_sdk(fw);
                                 }
                                 if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
@@ -884,7 +954,10 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
         let icon_candidates = [
             path_buf.join("sce_sys").join("icon0.png"),
             path_buf.join("SCE_SYS").join("icon0.png"),
+            path_buf.join("sce_sys").join("ICON0.PNG"),
+            path_buf.join("SCE_SYS").join("ICON0.PNG"),
             path_buf.join("icon0.png"),
+            path_buf.join("ICON0.PNG"),
         ];
 
         for icon_path in &icon_candidates {
@@ -909,13 +982,28 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
 
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(mut file) = fs::File::open(path_buf) {
-                let mut buffer = vec![0u8; 16 * 1024 * 1024]; // Read 16MB header probe for deep parameter discovery
+                let mut buffer = vec![0u8; 32 * 1024 * 1024]; // Read 32MB header probe for deep parameter discovery
                 if let Ok(bytes_read) = file.read(&mut buffer) {
                     let slice = &buffer[..bytes_read];
-                    if let Some(caps) = RE_TITLE_ID.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                ppsa = Some(s.to_uppercase().replace("-", "").replace("_", "").replace(" ", ""));
+
+                    // 1. Try binary SFO parser first
+                    if let Some(sfo) = parse_binary_sfo(slice) {
+                        if sfo.title_id.is_some() { ppsa = sfo.title_id; }
+                        if sfo.title.is_some() { local_title = sfo.title; }
+                        if sfo.app_ver.is_some() { app_ver = sfo.app_ver; }
+                        if sfo.sdk_ver.is_some() { sdk_ver = sfo.sdk_ver; }
+                        if sfo.min_fw.is_some() { min_firmware = sfo.min_fw; }
+                        if sfo.content_id.is_some() { content_id = sfo.content_id; }
+                        if sfo.category.is_some() { category = sfo.category; }
+                    }
+
+                    // 2. Scan for JSON parameter objects inside container
+                    if ppsa.is_none() {
+                        if let Some(caps) = RE_TITLE_ID.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    ppsa = Some(s.to_uppercase().replace("-", "").replace("_", "").replace(" ", ""));
+                                }
                             }
                         }
                     }
@@ -928,31 +1016,17 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
-                    if let Some(caps) = RE_TITLE_NAME.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                local_title = Some(s.to_string());
-                            }
-                        }
-                    }
                     if local_title.is_none() {
-                        if let Some(caps) = RE_SFO_TITLE.captures(slice) {
+                        if let Some(caps) = RE_TITLE_NAME.captures(slice) {
                             if let Some(m) = caps.get(1) {
                                 if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                    local_title = Some(s.trim().to_string());
+                                    local_title = Some(s.to_string());
                                 }
                             }
                         }
                     }
-                    if let Some(caps) = RE_APP_VER.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                app_ver = format_ps5_app_version(s);
-                            }
-                        }
-                    }
                     if app_ver.is_none() {
-                        if let Some(caps) = RE_SFO_APP_VER.captures(slice) {
+                        if let Some(caps) = RE_APP_VER.captures(slice) {
                             if let Some(m) = caps.get(1) {
                                 if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
                                     app_ver = format_ps5_app_version(s);
@@ -960,15 +1034,8 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
-                    if let Some(caps) = RE_SDK_VER.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                sdk_ver = format_ps5_sdk_version(s);
-                            }
-                        }
-                    }
                     if sdk_ver.is_none() {
-                        if let Some(caps) = RE_SFO_SDK_VER.captures(slice) {
+                        if let Some(caps) = RE_SDK_VER.captures(slice) {
                             if let Some(m) = caps.get(1) {
                                 if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
                                     sdk_ver = format_ps5_sdk_version(s);
@@ -976,24 +1043,30 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
-                    if let Some(caps) = RE_REQ_FW.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                min_firmware = format_ps5_sdk_version(s);
+                    if min_firmware.is_none() {
+                        if let Some(caps) = RE_REQ_FW.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    min_firmware = format_ps5_sdk_version(s);
+                                }
                             }
                         }
                     }
-                    if let Some(caps) = RE_CONTENT_ID.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                content_id = Some(s.to_string());
+                    if content_id.is_none() {
+                        if let Some(caps) = RE_CONTENT_ID.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    content_id = Some(s.to_string());
+                                }
                             }
                         }
                     }
-                    if let Some(caps) = RE_CATEGORY.captures(slice) {
-                        if let Some(m) = caps.get(1) {
-                            if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                category = Some(s.to_string());
+                    if category.is_none() {
+                        if let Some(caps) = RE_CATEGORY.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    category = Some(s.to_string());
+                                }
                             }
                         }
                     }
