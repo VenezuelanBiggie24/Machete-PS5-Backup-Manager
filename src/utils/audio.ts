@@ -17,8 +17,8 @@ export const setAudioMuted = (muted: boolean) => {
 let sharedAudioCtx: AudioContext | null = null;
 
 export const getAudioContext = (): AudioContext => {
-  if (!sharedAudioCtx) {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed' || (sharedAudioCtx.state as string) === 'interrupted') {
     sharedAudioCtx = new AudioContextClass();
   }
   if (sharedAudioCtx.state === 'suspended') {
@@ -31,7 +31,7 @@ export const getAudioContext = (): AudioContext => {
 export const unlockAudio = () => {
   try {
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
+    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
       ctx.resume().catch(() => {});
     }
     // Play a single silent PCM sample to prime WebKit's hardware audio pipeline
@@ -52,6 +52,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('click', handleUserInteraction, { passive: true });
   window.addEventListener('keydown', handleUserInteraction, { passive: true });
   window.addEventListener('touchstart', handleUserInteraction, { passive: true });
+  window.addEventListener('focus', handleUserInteraction, { passive: true });
 }
 
 // Pre-allocated white noise buffer for blade/machete sound to avoid memory allocations
@@ -80,10 +81,10 @@ export const playHoverSound = () => {
     lastHoverTime = nowMs;
 
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
+    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
       ctx.resume().catch(() => {});
     }
-    const now = ctx.currentTime;
+    const now = ctx.currentTime + 0.008;
     
     // Organic tactile pitch sweep across game boxes
     hoverPitchIndex = (hoverPitchIndex + 1) % HOVER_PITCHES.length;
@@ -112,9 +113,11 @@ export const playHoverSound = () => {
     osc.stop(now + 0.06);
 
     osc.onended = () => {
-      osc.disconnect();
-      filter.disconnect();
-      gain.disconnect();
+      try {
+        osc.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+      } catch (_) {}
     };
   } catch (e) {
     console.error("playHoverSound error:", e);
@@ -129,11 +132,12 @@ export const playHoverSound = () => {
 export const playPS5GameSelectSound = () => {
   try {
     if (isMuted) return;
+    unlockAudio();
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
+    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
       ctx.resume().catch(() => {});
     }
-    const now = ctx.currentTime;
+    const now = ctx.currentTime + 0.01;
 
     // 1. Warm Sub-Bass Focus Thump (Controller / Console Haptic resonance)
     const subOsc = ctx.createOscillator();
@@ -152,8 +156,10 @@ export const playPS5GameSelectSound = () => {
     subOsc.stop(now + 0.25);
 
     subOsc.onended = () => {
-      subOsc.disconnect();
-      subGain.disconnect();
+      try {
+        subOsc.disconnect();
+        subGain.disconnect();
+      } catch (_) {}
     };
 
     // 2. The Airy Crystalline Whoosh Swell (Filtered pink noise sweep)
@@ -220,9 +226,11 @@ export const playPS5GameSelectSound = () => {
       osc.stop(startTime + dur);
 
       osc.onended = () => {
-        osc.disconnect();
-        filter.disconnect();
-        gain.disconnect();
+        try {
+          osc.disconnect();
+          filter.disconnect();
+          gain.disconnect();
+        } catch (_) {}
       };
     });
   } catch (e) {
@@ -496,11 +504,16 @@ export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
     stopBgmTheme(false);
     currentBgmPath = gamePath || null;
 
-    // Convert data URI to ArrayBuffer
+    unlockAudio();
+
+    // 1. Primary: Standard HTML5 Blob Audio (Universal support in WebKit/Safari/WebView2)
     const parts = audioDataUri.split(',');
     if (parts.length < 2) return;
     const base64Data = parts[1];
     if (!base64Data) return;
+
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
 
     const binaryString = atob(base64Data);
     const len = binaryString.length;
@@ -509,108 +522,75 @@ export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-      await ctx.resume().catch(() => {});
+    try {
+      const blob = new Blob([bytes], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      currentBlobUrl = url;
+      const audio = new Audio(url);
+      audio.loop = true;
+      audio.volume = 0.70;
+      currentBgmAudio = audio;
+      await audio.play();
+      return;
+    } catch (htmlAudioErr) {
+      console.warn("HTML5 audio playback error, falling back to Web Audio API:", htmlAudioErr);
     }
 
-    // Try Web Audio API decodeAudioData for low-latency, hardware-accelerated playback
+    // 2. Fallback: Web Audio API
     try {
+      const ctx = getAudioContext();
+      if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
+        await ctx.resume().catch(() => {});
+      }
       const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-
       source.buffer = buffer;
       source.loop = true;
-
-      const now = ctx.currentTime;
+      const now = ctx.currentTime + 0.01;
       gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.65, now + 0.4);
-
+      gain.gain.linearRampToValueAtTime(0.70, now + 0.3);
       source.connect(gain);
       gain.connect(ctx.destination);
-
       source.start(now);
       bgmSourceNode = source;
       bgmGainNode = gain;
-      return;
-    } catch (decodeErr) {
-      console.warn("Web Audio decodeAudioData failed, falling back to Blob audio element:", decodeErr);
+    } catch (webAudioErr) {
+      console.error("Web Audio fallback error:", webAudioErr);
     }
-
-    // Extract MIME type from data URI
-    const mimeMatch = parts[0].match(/:(.*?);/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
-
-    // Fallback: Blob URL on HTMLAudioElement
-    const blob = new Blob([bytes], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    currentBlobUrl = url;
-    const audio = new Audio(url);
-    audio.loop = true;
-    audio.volume = 0.65;
-    currentBgmAudio = audio;
-    await audio.play().catch((e) => console.warn("Blob audio playback warning:", e));
   } catch (e) {
     console.error("playBgmTheme error:", e);
   }
 };
 
-export const stopBgmTheme = (smooth = true) => {
+export const stopBgmTheme = (_smooth = true) => {
   currentBgmPath = null;
 
-  // 1. Stop Web Audio source
+  if (currentBlobUrl) {
+    try {
+      URL.revokeObjectURL(currentBlobUrl);
+    } catch (_) {}
+    currentBlobUrl = null;
+  }
+
+  if (currentBgmAudio) {
+    try {
+      currentBgmAudio.pause();
+      currentBgmAudio.currentTime = 0;
+    } catch (_) {}
+    currentBgmAudio = null;
+  }
+
   if (bgmSourceNode && bgmGainNode) {
     const source = bgmSourceNode;
     const gain = bgmGainNode;
     bgmSourceNode = null;
     bgmGainNode = null;
 
-    if (!smooth) {
-      try {
-        source.stop();
-        source.disconnect();
-        gain.disconnect();
-      } catch (_) {}
-    } else {
-      try {
-        const ctx = getAudioContext();
-        const now = ctx.currentTime;
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
-        setTimeout(() => {
-          try {
-            source.stop();
-            source.disconnect();
-            gain.disconnect();
-          } catch (_) {}
-        }, 350);
-      } catch (_) {
-        try {
-          source.stop();
-          source.disconnect();
-          gain.disconnect();
-        } catch (_) {}
-      }
-    }
-  }
-
-  // 2. Stop HTMLAudioElement fallback
-  if (currentBgmAudio) {
-    const audio = currentBgmAudio;
-    currentBgmAudio = null;
     try {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.src = '';
+      source.stop();
+      source.disconnect();
+      gain.disconnect();
     } catch (_) {}
   }
-
-  // Revoke Blob URL
-  if (currentBlobUrl) {
-    URL.revokeObjectURL(currentBlobUrl);
-    currentBlobUrl = null;
-  }
 };
-
-

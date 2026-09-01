@@ -475,16 +475,25 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
 
 fn calculate_dir_size(path: &std::path::Path) -> u64 {
     let mut size = 0;
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            if let Ok(file_type) = entry.file_type() {
-                if file_type.is_symlink() {
-                    continue; // Skip symlinks to avoid circular recursion loops
-                }
-                if file_type.is_dir() {
-                    size += calculate_dir_size(&entry.path());
-                } else if let Ok(meta) = entry.metadata() {
-                    size += meta.len();
+    let mut stack = vec![path.to_path_buf()];
+    let mut visited = 0;
+
+    while let Some(current) = stack.pop() {
+        visited += 1;
+        if visited > 100_000 {
+            break; // Prevent infinite hangs on corrupt directory trees
+        }
+        if let Ok(entries) = fs::read_dir(&current) {
+            for entry in entries.flatten() {
+                if let Ok(file_type) = entry.file_type() {
+                    if file_type.is_symlink() {
+                        continue;
+                    }
+                    if file_type.is_dir() {
+                        stack.push(entry.path());
+                    } else if let Ok(meta) = entry.metadata() {
+                        size += meta.len();
+                    }
                 }
             }
         }
@@ -1019,7 +1028,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(file) = fs::File::open(path_buf) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(2 * 1024 * 1024); // Ultra-fast 2MB header probe (instant directory scanning)
+                let mut reader = file.take(512 * 1024); // Instant 512KB header probe
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
 
@@ -1182,13 +1191,12 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     })
                 });
                 
-                let mut size_bytes = 0;
                 let is_dir = path_buf.is_dir();
-                if !is_dir {
-                    if let Ok(metadata) = fs::metadata(&path_buf) {
-                        size_bytes = metadata.len();
-                    }
-                }
+                let size_bytes = if !is_dir {
+                    fs::metadata(&path_buf).map(|m| m.len()).unwrap_or(0)
+                } else {
+                    calculate_dir_size(&path_buf)
+                };
                 
                 Some(FileItem {
                     name: file_name.to_string(),
