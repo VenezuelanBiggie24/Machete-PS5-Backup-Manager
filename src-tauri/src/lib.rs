@@ -779,11 +779,27 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
     let mut all_pcm: Vec<i16> = Vec::new();
     let mut superframe_pcm = vec![0i16; superframe_samples];
-    let mut offset = 0;
-
     let max_superframes = (sample_rate as usize * 90) / (frame_samples * frames_in_superframe);
     let mut superframes_decoded = 0;
 
+    // Scan forward byte-by-byte (up to 4096 bytes) to find exact ATRAC9 superframe alignment
+    let mut offset = 0;
+    while offset + superframe_bytes <= data.len() && offset < 4096 {
+        let test_slice = &data[offset..offset + superframe_bytes];
+        if decoder.decode(test_slice, &mut superframe_pcm).is_ok() {
+            all_pcm.extend_from_slice(&superframe_pcm);
+            superframes_decoded += 1;
+            offset += superframe_bytes;
+            break;
+        }
+        offset += 1;
+    }
+
+    if superframes_decoded == 0 {
+        return None;
+    }
+
+    // Decode remaining superframes with auto-resync
     while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
         let frame_slice = &data[offset..offset + superframe_bytes];
         if decoder.decode(frame_slice, &mut superframe_pcm).is_ok() {
@@ -791,7 +807,22 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
             superframes_decoded += 1;
             offset += superframe_bytes;
         } else {
-            offset += superframe_bytes.max(frame_bytes);
+            let mut synced = false;
+            for delta in 1..frame_bytes.min(256) {
+                if offset + delta + superframe_bytes <= data.len() {
+                    let re_slice = &data[offset + delta..offset + delta + superframe_bytes];
+                    if decoder.decode(re_slice, &mut superframe_pcm).is_ok() {
+                        all_pcm.extend_from_slice(&superframe_pcm);
+                        superframes_decoded += 1;
+                        offset += delta + superframe_bytes;
+                        synced = true;
+                        break;
+                    }
+                }
+            }
+            if !synced {
+                offset += superframe_bytes;
+            }
         }
     }
 
@@ -835,36 +866,51 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
     }
 
     // Pass 1: Look for exact priority files in current directory or sce_sys
-    let priority_names = ["snd0.at9", "SND0.AT9", "snd0.wav", "SND0.WAV", "snd0.mp3", "bgm.at9", "theme.at9"];
+    let priority_names = [
+        "snd0.at9", "SND0.AT9", "snd0.wav", "SND0.WAV", "snd0.mp3", "SND0.MP3",
+        "snd0.ogg", "snd0.flac", "bgm.at9", "BGM.AT9", "theme.at9", "THEME.AT9",
+        "snd0", "SND0"
+    ];
     for name in &priority_names {
         let cand = dir.join(name);
         if cand.is_file() {
-            let ext = cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let ext = cand.extension().and_then(|e| e.to_str()).unwrap_or("at9").to_lowercase();
             return Some((cand, ext));
         }
         let sce_cand = dir.join("sce_sys").join(name);
         if sce_cand.is_file() {
-            let ext = sce_cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let ext = sce_cand.extension().and_then(|e| e.to_str()).unwrap_or("at9").to_lowercase();
             return Some((sce_cand, ext));
         }
         let sce_upper_cand = dir.join("SCE_SYS").join(name);
         if sce_upper_cand.is_file() {
-            let ext = sce_upper_cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let ext = sce_upper_cand.extension().and_then(|e| e.to_str()).unwrap_or("at9").to_lowercase();
             return Some((sce_upper_cand, ext));
         }
     }
 
-    // Pass 2: Recurse into subdirectories
+    // Pass 2: Check all files in current directory, then recurse into subdirectories
     if let Ok(entries) = fs::read_dir(dir) {
+        let mut subdirs = Vec::new();
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() {
-                let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
-                if !name_lower.starts_with('.') {
-                    if let Some(res) = find_game_audio_file(&path, depth + 1) {
-                        return Some(res);
-                    }
+            let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+            if name_lower.starts_with('.') {
+                continue;
+            }
+            if path.is_file() {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                if ext == "at9" || name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.contains("soundtrack") {
+                    let kind = if ext.is_empty() { "at9".to_string() } else { ext };
+                    return Some((path, kind));
                 }
+            } else if path.is_dir() {
+                subdirs.push(path);
+            }
+        }
+        for sub in subdirs {
+            if let Some(res) = find_game_audio_file(&sub, depth + 1) {
+                return Some(res);
             }
         }
     }
