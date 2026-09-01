@@ -1,4 +1,4 @@
-// Global Mute State
+// Global Mute State (Defaults to unmuted false)
 let isMuted = typeof window !== 'undefined' && localStorage.getItem('machete_audio_muted') === 'true';
 
 export const isAudioMuted = () => isMuted;
@@ -16,7 +16,7 @@ export const setAudioMuted = (muted: boolean) => {
 // PlayStation Legacy & PS5 UI Sound Engine (Synthesized via Web Audio API)
 let sharedAudioCtx: AudioContext | null = null;
 
-const getAudioContext = (): AudioContext => {
+export const getAudioContext = (): AudioContext => {
   if (!sharedAudioCtx) {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     sharedAudioCtx = new AudioContextClass();
@@ -27,28 +27,31 @@ const getAudioContext = (): AudioContext => {
   return sharedAudioCtx;
 };
 
-// Automatic WebKit / Safari User Interaction Audio Unlocker
+// Reliable WebKit / Chromium Audio Unlocker
+export const unlockAudio = () => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    // Play a single silent PCM sample to prime WebKit's hardware audio pipeline
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch (_) {}
+};
+
 if (typeof window !== 'undefined') {
-  const unlockAudio = () => {
-    try {
-      const ctx = getAudioContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume().then(() => {
-          window.removeEventListener('pointerdown', unlockAudio);
-          window.removeEventListener('click', unlockAudio);
-          window.removeEventListener('keydown', unlockAudio);
-        }).catch(() => {});
-      } else {
-        window.removeEventListener('pointerdown', unlockAudio);
-        window.removeEventListener('click', unlockAudio);
-        window.removeEventListener('keydown', unlockAudio);
-      }
-    } catch (_) {}
+  const handleUserInteraction = () => {
+    unlockAudio();
   };
 
-  window.addEventListener('pointerdown', unlockAudio, { passive: true });
-  window.addEventListener('click', unlockAudio, { passive: true });
-  window.addEventListener('keydown', unlockAudio, { passive: true });
+  window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
+  window.addEventListener('click', handleUserInteraction, { passive: true });
+  window.addEventListener('keydown', handleUserInteraction, { passive: true });
+  window.addEventListener('touchstart', handleUserInteraction, { passive: true });
 }
 
 // Pre-allocated white noise buffer for blade/machete sound to avoid memory allocations

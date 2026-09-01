@@ -1157,17 +1157,22 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
 #[tauri::command]
 async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut files = Vec::new();
-        let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
+        use rayon::prelude::*;
+        let entries: Vec<_> = fs::read_dir(path)
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .collect();
         
-        for entry in entries.flatten() {
-            let path_buf = entry.path();
-            if let Some(file_name) = path_buf.file_name().and_then(|n| n.to_str()) {
+        let mut files: Vec<FileItem> = entries
+            .into_par_iter()
+            .filter_map(|entry| {
+                let path_buf = entry.path();
+                let file_name = path_buf.file_name()?.to_str()?;
                 if file_name.starts_with('.') {
-                    continue;
+                    return None;
                 }
                 
-                // 1. Inspect PS5 structure (sce_sys/param.json, containers)
+                // 1. Inspect PS5 structure in parallel across all CPU cores
                 let inspected = inspect_ps5_item(&path_buf);
                 
                 // 2. Fallback to filename regex if PPSA wasn't inside the container
@@ -1185,7 +1190,7 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     }
                 }
                 
-                files.push(FileItem {
+                Some(FileItem {
                     name: file_name.to_string(),
                     path: path_buf.to_string_lossy().to_string(),
                     ppsa,
@@ -1199,9 +1204,9 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                     content_id: inspected.content_id,
                     category: inspected.category,
                     has_local_icon: inspected.has_local_icon,
-                });
-            }
-        }
+                })
+            })
+            .collect();
         
         // Sort alphabetically by filename
         files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));

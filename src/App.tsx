@@ -410,18 +410,7 @@ export default function App() {
         .then(disk => setDiskInfo(disk))
         .catch(e => console.error("Could not get disk space", e));
 
-      // 3. Background: Non-blocking folder size calculations
-      result.forEach(file => {
-        if (file.is_dir) {
-          invoke<number>('get_folder_size', { path: file.path })
-            .then(size => {
-              setFiles(prev => prev.map(f => f.path === file.path ? { ...f, size_bytes: size } : f));
-            })
-            .catch(e => console.error("Error getting folder size for", file.path, e));
-        }
-      });
-
-      // 4. Background: Asynchronously stream high-resolution vertical covers from CDN / SerialStation
+      // 3. Background: Asynchronously stream high-resolution vertical covers from CDN / SerialStation
       const ppsas = result.filter(f => f.ppsa).map(f => f.ppsa!);
       const uniquePpsas = [...new Set(ppsas)];
       
