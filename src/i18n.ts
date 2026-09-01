@@ -2,7 +2,6 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import en from './locales/en.json';
-import es from './locales/es.json';
 import es_ve from './locales/es_ve.json';
 import fr from './locales/fr.json';
 import de from './locales/de.json';
@@ -17,7 +16,7 @@ import ar from './locales/ar.json';
 
 const resources = {
   en: { translation: en },
-  es: { translation: es },
+  es: { translation: es_ve },
   es_ve: { translation: es_ve },
   fr: { translation: fr },
   de: { translation: de },
@@ -31,7 +30,8 @@ const resources = {
   ar: { translation: ar },
 };
 
-const savedLanguage = typeof window !== 'undefined' ? localStorage.getItem('machete_lang') || 'en' : 'en';
+const rawSaved = typeof window !== 'undefined' ? localStorage.getItem('machete_lang') || 'en' : 'en';
+const savedLanguage = rawSaved === 'es' ? 'es_ve' : rawSaved;
 
 i18n
   .use(initReactI18next)

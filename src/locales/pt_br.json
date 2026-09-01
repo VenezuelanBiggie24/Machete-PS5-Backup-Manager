@@ -21,46 +21,8 @@
   "change_cover": "Alterar Capa",
   "rename_prompt": "Digite o novo título para este jogo:",
   "changelog_title": "Changelog",
-  "changelog_v110_title": "v1.1.0 - (Current)",
-  "changelog_v110_items": [
-    "Custom cover and title support (manual overrides).",
-    "Larger default window size for optimal layout.",
-    "Added SSD warning during scanning.",
-    "Localized changelog and dialogs."
-  ],
-  "changelog_v100_title": "v1.0.0 - (Release)",
-  "changelog_v100_items": [
-    "Official rename to Machete PS5 Backup Manager.",
-    "Cross-region AI cover fetching fallback.",
-    "Relocated PPSA badge to bottom-right.",
-    "Strict anonymization of SerialStation requests."
-  ],
-  "changelog_v020_title": "v0.2.0 - (Beta)",
-  "changelog_v020_items": [
-    "Incorporation of native deletion prevention system (Native Dialog).",
-    "UI restructuring with Cyberpunk styling and dark mode.",
-    "Native support for 11 languages with dynamic switching."
-  ],
-  "changelog_v010_title": "v0.1.0 - (Initial)",
-  "changelog_v010_items": [
-    "Proof of concept. Asynchronous file reading.",
-    "Basic initial connection with SerialStation API.",
-    "Disk space calculation."
-  ],
   "license_info": "Distribuído sob a Licença GPLv3",
   "repository_label": "Repositório Oficial",
-  "changelog_v200_title": "v2.0.0-alpha.1",
-  "changelog_v200_items": [
-    "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
-    "Motor I/O asíncrono impulsado por Tokio.",
-    "Cálculo de hashes Blake3 Anti Bit-Rot.",
-    "Cálculo dinámico del tamaño total del directorio."
-  ],
-  "changelog_v123_title": "v1.2.3",
-  "changelog_v123_items": [
-    "Corregido error de '0 GB' en el peso de carpetas.",
-    "Añadido cálculo total de GB en la barra superior."
-  ],
   "update_title": "Atualização de Software",
   "update_check_btn": "Verificar Atualizações",
   "update_checking": "Verificando...",
@@ -71,14 +33,6 @@
   "update_install_btn": "Baixar e Instalar",
   "update_later": "Mais Tarde",
   "update_relaunch": "Reiniciar Agora",
-  "changelog_v202_title": "v2.0.2 - Auto-Updater",
-  "changelog_v202_items": [
-    "In-app auto-updater: checks for new versions from GitHub Releases.",
-    "Download & install updates directly from the app with progress bar.",
-    "Dynamic version display in About section (no more hardcoded versions).",
-    "Auto-check for updates on startup.",
-    "All updater UI fully translated to 12 languages."
-  ],
   "settings_title": "Configurações do Sistema",
   "settings_visual_effects": "Efeitos Visuais 3D & Levitação",
   "settings_visual_effects_desc": "Ativa a física anti-gravidade 3D e sombras de altura.",
@@ -129,91 +83,87 @@
   "storage_of_total": "do total",
   "mute_toggle_unmute": "Ativar Áudio",
   "mute_toggle_mute": "Silenciar Áudio",
-  "changelog_v120_title": "v1.2.0",
-  "changelog_v120_items": [
-    "Added file/folder transfer support via Drag & Drop and Click.",
-    "Added transfer progress UI (Speed and ETA calculation).",
-    "Fixed grid padding for perfect cover cropping."
-  ],
-  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
-  "changelog_v210_items": [
-    "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",
-    "Official soundtrack playback for each game (native Rust ATRAC9 snd0.at9 decoder).",
-    "Signature harmonic crystal selection chime inspired by the PlayStation 5 UI.",
-    "Quick Mute/Audio toggle in the top bar with persistent local storage.",
-    "Detailed Game Inspector Modal with 4K covers and direct file manager access.",
-    "Multi-selection with keyboard shortcuts and floating batch action bar.",
-    "Interactive Storage Analyzer with dynamic treemap and large backup rankings."
-  ],
   "changelogs": [
     {
-      "version": "v2.1.2 - Audio Engine Hotfix & Synthesis Optimization",
+      "version": "v2.3.0 - Lançamento Principal Multiplataforma, Motor de Superframes ATRAC9 e Diagnóstico Preciso",
       "items": [
-        "Resolved WebKit AudioContext zero-value exponential curve exception.",
-        "Switched to universal safe linear ramps for crystal-clear, high-volume PS5 UI sound effects.",
-        "Immediate synchronous audio context reactivation on game card hover and selection."
+        "Decodificador nativo em Rust de superframes Sony ATRAC9 e reprodutor de streaming Web Audio para trilha sonora oficial (snd0.at9).",
+        "Detecção e formatação decimal precisa das versões do SDK (SDK 9.00, SDK 8.50, SDK 7.61) e versões de aplicativo (v1.00, v1.02) sem resíduos hexadecimais.",
+        "Blindagem completa para Windows: caminhos sanitizados para explorer.exe, remoção automática de atributos somente leitura e cálculo de espaço exato.",
+        "Blindagem completa para Linux: chamadas POSIX statvfs para Steam Deck e UDisks2, integração D-Bus ShowItems e insensibilidade a maiúsculas/minúsculas.",
+        "Inovações para macOS: indicador de progresso no ícone do Dock (NSDockTile) e clonagem instantânea APFS Copy-on-Write.",
+        "Instalador NSIS multilíngue (10 idiomas) em modo usuário e otimização do cache de compilação CI/CD."
       ]
     },
     {
-      "version": "v2.1.1 - UI Refinement, Audio & macOS Menu",
+      "version": "v2.1.2 - Patch do Motor de Áudio e Otimização de Síntese",
       "items": [
-        "Fixed box art double-header superposition defect for full-bleed 4K master covers.",
-        "Unlocked WebKit/Safari AudioContext with enhanced PS5 acoustic synthesis on card hover and select.",
-        "Added dynamic multi-language dropdown in Settings with English (en) set as the default.",
-        "Streamlined top bar layout and integrated native macOS application menu items (About, Check for Updates, Settings Cmd+,)."
+        "Resolução da exceção de curva exponencial com valor zero no WebKit AudioContext.",
+        "Transição para rampas lineares universais seguras para acústica de interface PS5 nítida.",
+        "Reativação síncrona imediata do contexto de áudio ao passar o cursor e selecionar jogos."
       ]
     },
     {
-      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
+      "version": "v2.1.1 - Refinamento de UI, Áudio e Menu macOS",
       "items": [
-        "Proprietary Low-Latency Global Edge CDN: High-speed Cloudflare R2 Edge server hosting over 11,940 vertical 4K master covers (3:4 aspect ratio) with official white PS5 headers, resolving covers globally in <15ms without third-party dependencies.",
-        "Uncompromising Privacy & Absolute Anonymity: Zero telemetry, zero tracking, zero IP logging, and zero analytics. Generic browser User-Agent requests with zero fingerprinting. Your storage and backups remain 100% private and local.",
-        "Native & Exhaustive ShadowMountPlus Support: Comprehensive streaming inspection (1MB header probe) for all formats in the ShadowMountPlus ecosystem (.ffpkg UFS, .exfat 64KB, .ffpfs PFS, .ffpfsc MicroMount/MkPFS containers) and folder dumps.",
-        "3D Anti-Gravity Visual Engine: Floating inertial levitation, real-time 3D tilt with 1200px perspective, and cursor-reactive floor shadows.",
-        "Native PS5 Acoustic Synthesis & ATRAC9 Decoding: Original sinusoidal harmonic selection chime and native Rust snd0.at9 audio decoder to listen to official game soundtracks.",
-        "Interactive Storage Analyzer & Batch Mode: Treemap disk visualizer with heatmap rankings and floating batch action bar with keyboard shortcuts.",
-        "System Settings Panel: Full control to toggle 3D visual effects and acoustic audio with persistent local storage.",
-        "Rust 2021 Engine with opt-level=3 and LazyLock: High-throughput NVMe I/O transfers with instant macOS APFS Copy-On-Write clonefile acceleration."
+        "Correção de sobreposição de cabeçalho para capas 4K em tela cheia.",
+        "Desbloqueio de AudioContext no WebKit/macOS com acústica PS5 calibrada ao passar o cursor e selecionar jogos.",
+        "Adicionado seletor interativo de idioma nas Configurações com inglês como padrão.",
+        "Reorganização da barra superior e integração com o menu nativo do macOS."
       ]
     },
     {
-      "version": "v2.0.2 - Cryptographic Auto-Updater",
+      "version": "v2.1.0 - Atualização Next-Gen e CDN Edge Soberana",
       "items": [
-        "Integrated Tauri v2 auto-updater with Minisign cryptographic verification.",
-        "Seamless in-app download and installation from GitHub Releases with live progress bar.",
-        "Real-time update notifications without restarting."
+        "CDN global proprietária de ultrabaixa latência: Cloudflare R2 com mais de 11.940 capas verticais 4K (3:4) com tarja branca PS5 oficial, entregues em <15ms.",
+        "Anonimato absoluto e zero telemetria: nenhuma coleta de dados, User-Agent genérico e banco de dados 100% local.",
+        "Suporte completo ao ecossistema ShadowMountPlus: detecção e inspeção profunda de .ffpkg, .exfat, .ffpfs, .ffpfsc e pastas dump.",
+        "Motor visual 3D Anti-Gravidade: levitação por molas inerciais, inclinação 3D com perspectiva de 1200px e sombras volumétricas.",
+        "Acústica nativa PS5: acorde harmônico senoidal original e decodificador Rust snd0.at9.",
+        "Analisador de armazenamento Treemap e operações em lote com atalhos de teclado.",
+        "Painel de Configurações para gerenciar efeitos visuais e sonoros.",
+        "Motor Rust 2021 compilado com opt-level=3 para máxima taxa de transferência NVMe."
+      ]
+    },
+    {
+      "version": "v2.0.2 - Atualizador Automático Criptográfico",
+      "items": [
+        "Atualizador automático integrado Tauri v2 com verificação Minisign.",
+        "Download e instalação direta via GitHub Releases com barra de progresso.",
+        "Notificações em tempo real sem necessidade de reiniciar."
       ]
     },
     {
       "version": "v2.0.0-alpha.1",
       "items": [
-        "New Cyberpunk interface (3D Cards, Hacker Console, Holographic Disk).",
-        "Asynchronous Tokio-powered I/O engine.",
-        "Dynamic directory size calculation."
+        "Nova interface Cyberpunk (Cards 3D, Console Hacker, Disco Holográfico).",
+        "Motor I/O assíncrono baseado em Tokio.",
+        "Cálculo de hashes Blake3 Anti Bit-Rot.",
+        "Cálculo dinâmico do tamanho total do diretório."
       ]
     },
     {
       "version": "v1.2.3",
       "items": [
-        "Fixed 0 GB size calculation bug on directory backups.",
-        "Added total GB indicator to top bar."
+        "Corrigido erro de 0 GB no tamanho das pastas.",
+        "Adicionado cálculo total de GB na barra superior."
       ]
     },
     {
       "version": "v1.1.0",
       "items": [
-        "Custom title and cover art override support.",
-        "Optimized default window dimensions.",
-        "SSD scan warning on high-capacity drives."
+        "Suporte para capas e títulos personalizados.",
+        "Tamanho de janela padrão otimizado.",
+        "Aviso de varredura para SSDs de grande capacidade."
       ]
     },
     {
-      "version": "v1.0.0 - Official Release",
+      "version": "v1.0.0 - Lançamento Oficial",
       "items": [
-        "Official release of Machete PS5 Backup Manager.",
-        "Automated high-resolution cover downloading.",
-        "PPSA badge placement in bottom corner.",
-        "Strict API request anonymization."
+        "Lançamento oficial do Machete PS5 Backup Manager.",
+        "Download automático de capas em alta resolução.",
+        "Emblema PPSA reposicionado no canto inferior.",
+        "Anonimização estrita de requisições à API."
       ]
     }
   ],

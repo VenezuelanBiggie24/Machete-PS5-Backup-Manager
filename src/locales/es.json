@@ -9,10 +9,10 @@
   "select_dir": "Seleccionar Directorio",
   "current_dir": "Directorio Actual:",
   "about_desc": "Desarrollado por VenezuelanBiggie24, un orgulloso desarrollador venezolano. Aunque las realidades del comunismo me obligaron a dejar mi hogar, esa adversidad se transformó en resiliencia, permitiéndome hoy escribir código y crear soluciones sin fronteras desde cualquier rincón del mundo.",
-  "app_subtitle": "Universal PS5 Manager",
-  "author_label": "Author",
-  "version_label": "Version",
-  "scanning_dir": "SCANNING DIRECTORY...",
+  "app_subtitle": "Gestor de Respaldo Universal de PS5",
+  "author_label": "Autor",
+  "version_label": "Versión",
+  "scanning_dir": "ESCANEANDO DIRECTORIO...",
   "delete_confirm_title": "Confirmar Eliminación",
   "delete_confirm_msg": "¿Estás seguro de que deseas eliminar este título permanentemente? Esta acción no se puede deshacer.",
   "ssd_warning": "Cargar archivos masivos puede tardar unos momentos en discos de gran capacidad...",
@@ -23,9 +23,9 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
-      "version": "v2.3.0 - Actualización Mayor Multiplataforma, Motor de Superframes ATRAC9 y Diagnóstico Exacto",
+      "version": "v2.3.0 - Actualización Mayor Multiplataforma, Audio ATRAC9 y Diagnóstico Exacto",
       "items": [
-        "Decodificador nativo en Rust de superframes Sony ATRAC9 y reproductor Web Audio API en streaming para música oficial (snd0.at9).",
+        "Decodificador nativo en Rust de Sony ATRAC9 y reproductor Web Audio API en streaming para música oficial (snd0.at9).",
         "Detección y formateo decimal exacto de versiones del SDK (SDK 9.00, SDK 8.50, SDK 7.61) y versión del título (v1.00, v1.02) sin cadenas hexadecimales.",
         "Blindaje total para Windows: corrección de rutas en explorer.exe, remoción automática de atributos de solo lectura y cálculo exacto de espacio.",
         "Blindaje total para Linux: llamadas POSIX statvfs para Steam Deck / UDisks2, integración D-Bus ShowItems e insensibilidad a mayúsculas/minúsculas.",
@@ -105,36 +105,6 @@
       ]
     }
   ],
-  "license_info": "Distribuido bajo la Licencia GPLv3",
-  "repository_label": "Repositorio Oficial",
-  "update_title": "Actualización de Software",
-  "update_check_btn": "Buscar Actualizaciones",
-  "update_checking": "Verificando...",
-  "update_none": "Ya tienes la última versión. No hay actualizaciones disponibles.",
-  "update_error": "No se pudo verificar actualizaciones. Intenta más tarde.",
-  "update_available_title": "Actualización Disponible",
-  "update_downloading": "Descargando actualización...",
-  "update_install_btn": "Descargar e Instalar",
-  "update_later": "Más Tarde",
-  "update_relaunch": "Reiniciar Ahora",
-  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
-  "changelog_v210_items": [
-    "Efecto visual Anti-Gravedad 3D con levitación flotante y sombras de suelo dinámicas.",
-    "Banda sonora oficial de cada juego (decodificador ATRAC9 snd0.at9 nativo en Rust).",
-    "Acorde armónico senoidal característico de selección de PlayStation 5.",
-    "Botón de silencio / control de audio rápido en la barra superior con memoria local.",
-    "Ficha técnica e Inspector Detallado de Juego con carátulas 4K y acceso directo a archivos.",
-    "Selección múltiple con atajos de teclado y barra flotante de acciones en lote.",
-    "Analizador Gráfico de Almacenamiento con mapa interactivo y ranking de juegos pesados."
-  ],
-  "changelog_v202_title": "v2.0.2 - Auto-Actualizador",
-  "changelog_v202_items": [
-    "Auto-actualizador integrado: verifica nuevas versiones desde GitHub Releases.",
-    "Descarga e instala actualizaciones directamente desde la app con barra de progreso.",
-    "Versión dinámica en la sección Acerca de (sin más versiones fijas en el código).",
-    "Verificación automática de actualizaciones al iniciar.",
-    "Toda la interfaz del actualizador traducida a 12 idiomas."
-  ],
   "settings_title": "Ajustes del Sistema",
   "settings_visual_effects": "Efectos Visuales 3D y Levitación",
   "settings_visual_effects_desc": "Activa la anti-gravedad 3D, sombras de suelo y resplandores de neón.",
@@ -185,78 +155,88 @@
   "storage_of_total": "del total",
   "mute_toggle_unmute": "Activar Audio (PS5 UI + BGM)",
   "mute_toggle_mute": "Silenciar Audio",
-  "changelogs": [
-    {
-      "version": "v2.1.2 - Parche del Motor de Audio y Optimización de Síntesis",
-      "items": [
-        "Resuelta la excepción de curva exponencial con valor cero en WebKit AudioContext.",
-        "Transición a rampas lineales universales seguras para efectos acústicos de PS5 nítidos y de alto volumen.",
-        "Reactivación síncrona inmediata del contexto de audio al pasar el cursor y seleccionar carátulas."
-      ]
-    },
-    {
-      "version": "v2.1.1 - Refinamiento de UI, Audio y Menú macOS",
-      "items": [
-        "Corregido error de sobreposición de encabezado en carátulas para visualización 4K a sangre completa.",
-        "Desbloqueo de AudioContext en WebKit/macOS con acústica de PS5 calibrada al pasar el cursor y seleccionar juegos.",
-        "Añadido selector interactivo de idioma en Ajustes con inglés predeterminado.",
-        "Reorganización limpia de la barra superior e integración de opciones en el menú nativo de macOS (Acerca de, Actualizaciones, Ajustes Cmd+,)."
-      ]
-    },
-    {
-      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
-      "items": [
-        "Proprietary Low-Latency Global Edge CDN: High-speed Cloudflare R2 Edge server hosting over 11,940 vertical 4K master covers (3:4 aspect ratio) with official white PS5 headers, resolving covers globally in <15ms without third-party dependencies.",
-        "Uncompromising Privacy & Absolute Anonymity: Zero telemetry, zero tracking, zero IP logging, and zero analytics. Generic browser User-Agent requests with zero fingerprinting. Your storage and backups remain 100% private and local.",
-        "Native & Exhaustive ShadowMountPlus Support: Comprehensive streaming inspection (1MB header probe) for all formats in the ShadowMountPlus ecosystem (.ffpkg UFS, .exfat 64KB, .ffpfs PFS, .ffpfsc MicroMount/MkPFS containers) and folder dumps.",
-        "3D Anti-Gravity Visual Engine: Floating inertial levitation, real-time 3D tilt with 1200px perspective, and cursor-reactive floor shadows.",
-        "Native PS5 Acoustic Synthesis & ATRAC9 Decoding: Original sinusoidal harmonic selection chime and native Rust snd0.at9 audio decoder to listen to official game soundtracks.",
-        "Interactive Storage Analyzer & Batch Mode: Treemap disk visualizer with heatmap rankings and floating batch action bar with keyboard shortcuts.",
-        "System Settings Panel: Full control to toggle 3D visual effects and acoustic audio with persistent local storage.",
-        "Rust 2021 Engine with opt-level=3 and LazyLock: High-throughput NVMe I/O transfers with instant macOS APFS Copy-On-Write clonefile acceleration."
-      ]
-    },
-    {
-      "version": "v2.0.2 - Cryptographic Auto-Updater",
-      "items": [
-        "Integrated Tauri v2 auto-updater with Minisign cryptographic verification.",
-        "Seamless in-app download and installation from GitHub Releases with live progress bar.",
-        "Real-time update notifications without restarting."
-      ]
-    },
-    {
-      "version": "v2.0.0-alpha.1",
-      "items": [
-        "New Cyberpunk interface (3D Cards, Hacker Console, Holographic Disk).",
-        "Asynchronous Tokio-powered I/O engine.",
-        "Dynamic directory size calculation."
-      ]
-    },
-    {
-      "version": "v1.2.3",
-      "items": [
-        "Fixed 0 GB size calculation bug on directory backups.",
-        "Added total GB indicator to top bar."
-      ]
-    },
-    {
-      "version": "v1.1.0",
-      "items": [
-        "Custom title and cover art override support.",
-        "Optimized default window dimensions.",
-        "SSD scan warning on high-capacity drives."
-      ]
-    },
-    {
-      "version": "v1.0.0 - Official Release",
-      "items": [
-        "Official release of Machete PS5 Backup Manager.",
-        "Automated high-resolution cover downloading.",
-        "PPSA badge placement in bottom corner.",
-        "Strict API request anonymization."
-      ]
-    }
+  "license_info": "Distribuido bajo la Licencia GPLv3",
+  "repository_label": "Repositorio Oficial",
+  "delete": "Eliminar",
+  "delete_error": "Error al eliminar el respaldo",
+  "update_title": "Actualización de Software",
+  "update_check_btn": "Buscar Actualizaciones",
+  "update_checking": "Verificando...",
+  "update_none": "Ya tienes la última versión. No hay actualizaciones disponibles.",
+  "update_error": "No se pudo verificar actualizaciones. Intenta más tarde.",
+  "update_available_title": "Actualización Disponible",
+  "update_downloading": "Descargando actualización...",
+  "update_install_btn": "Descargar e Instalar",
+  "update_later": "Más Tarde",
+  "update_relaunch": "Reiniciar Ahora",
+  "changelog_v110_title": "v1.1.0 - (Current)",
+  "changelog_v110_items": [
+    "Custom cover and title support (manual overrides).",
+    "Larger default window size for optimal layout.",
+    "Added SSD warning during scanning.",
+    "Localized changelog and dialogs."
   ],
-  "delete": "Delete",
-  "delete_error": "Failed to delete backup"
+  "changelog_v100_title": "v1.0.0 - (Release)",
+  "changelog_v100_items": [
+    "Official rename to Machete PS5 Backup Manager.",
+    "Cross-region AI cover fetching fallback.",
+    "Relocated PPSA badge to bottom-right.",
+    "Strict anonymization of SerialStation requests."
+  ],
+  "changelog_v020_title": "v0.2.0 - (Beta)",
+  "changelog_v020_items": [
+    "Incorporation of native deletion prevention system (Native Dialog).",
+    "UI restructuring with Cyberpunk styling and dark mode.",
+    "Native support for 11 languages with dynamic switching."
+  ],
+  "changelog_v010_title": "v0.1.0 - (Initial)",
+  "changelog_v010_items": [
+    "Proof of concept. Asynchronous file reading.",
+    "Basic initial connection with SerialStation API.",
+    "Disk space calculation."
+  ],
+  "changelog_v120_title": "v1.2.0",
+  "changelog_v120_items": [
+    "Added file/folder transfer support via Drag & Drop and Click.",
+    "Added transfer progress UI (Speed and ETA calculation).",
+    "Fixed grid padding for perfect cover cropping."
+  ],
+  "changelog_v200_title": "v2.0.0-alpha.1",
+  "changelog_v200_items": [
+    "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
+    "Motor I/O asíncrono impulsado por Tokio.",
+    "Cálculo de hashes Blake3 Anti Bit-Rot.",
+    "Cálculo dinámico del tamaño total del directorio."
+  ],
+  "changelog_v123_title": "v1.2.3",
+  "changelog_v123_items": [
+    "Corregido error de '0 GB' en el peso de carpetas.",
+    "Añadido cálculo total de GB en la barra superior."
+  ],
+  "changelog_v220_title": "v2.2.0 - Motor de Audio ATRAC9 y Diagnóstico Técnico",
+  "changelog_v220_items": [
+    "Decodificador nativo en Rust de Sony ATRAC9 para música de fondo oficial (snd0.at9).",
+    "Reproducción automática del soundtrack del juego al ver detalles, con controles de volumen y fade-in.",
+    "Detección exacta del SDK de compilación (SDK 9.00, SDK 8.50, SDK 7.61) y firmware mínimo requerido.",
+    "Extracción real de la versión del juego (appVer) con inspección profunda de cabeceras de 4MB.",
+    "Optimización de estabilidad del sistema, consolidación de versiones mayores y documentación técnica actualizada."
+  ],
+  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
+  "changelog_v210_items": [
+    "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",
+    "Official soundtrack playback for each game (native Rust ATRAC9 snd0.at9 decoder).",
+    "Signature harmonic crystal selection chime inspired by the PlayStation 5 UI.",
+    "Quick Mute/Audio toggle in the top bar with persistent local storage.",
+    "Detailed Game Inspector Modal with 4K covers and direct file manager access.",
+    "Multi-selection with keyboard shortcuts and floating batch action bar.",
+    "Interactive Storage Analyzer with dynamic treemap and large backup rankings."
+  ],
+  "changelog_v202_title": "v2.0.2 - Auto-Updater",
+  "changelog_v202_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "Full updater UI localized in 12 languages."
+  ]
 }

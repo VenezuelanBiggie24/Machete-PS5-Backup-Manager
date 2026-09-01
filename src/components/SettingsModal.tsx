@@ -5,7 +5,6 @@ import { playCancelSound, playHoverSound, playSelectSound } from '../utils/audio
 
 const LANGUAGES = [
   { code: 'en', label: 'English (Default)' },
-  { code: 'es', label: 'Español' },
   { code: 'es_ve', label: 'Español (Venezuela)' },
   { code: 'fr', label: 'Français' },
   { code: 'de', label: 'Deutsch' },
