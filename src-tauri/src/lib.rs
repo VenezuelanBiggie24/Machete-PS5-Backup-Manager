@@ -675,17 +675,18 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     while pos + 8 <= at9_bytes.len() {
         let chunk_id = &at9_bytes[pos..pos + 4];
         let chunk_size = u32::from_le_bytes(at9_bytes[pos + 4..pos + 8].try_into().unwrap_or([0; 4])) as usize;
-        let chunk_end = (pos + 8 + chunk_size).min(at9_bytes.len());
+        let data_start = pos + 8;
+        let data_end = (data_start + chunk_size).min(at9_bytes.len());
 
         if chunk_id == b"fmt " {
-            fmt_data = Some(&at9_bytes[pos + 8..chunk_end]);
+            fmt_data = Some(&at9_bytes[data_start..data_end]);
         } else if chunk_id == b"fact" {
-            fact_data = Some(&at9_bytes[pos + 8..chunk_end]);
+            fact_data = Some(&at9_bytes[data_start..data_end]);
         } else if chunk_id == b"data" {
-            audio_data = Some(&at9_bytes[pos + 8..chunk_end]);
+            audio_data = Some(&at9_bytes[data_start..data_end]);
         }
 
-        pos = chunk_end;
+        pos = data_end;
         if chunk_size % 2 != 0 {
             pos += 1;
         }
@@ -701,16 +702,46 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         }
     }
 
-    let data = audio_data?;
+    let data = audio_data.unwrap_or_else(|| {
+        if pos < at9_bytes.len() {
+            &at9_bytes[pos..]
+        } else {
+            &at9_bytes[12..]
+        }
+    });
 
     let mut decoder_opt = None;
-    if fmt.len() >= 4 {
-        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48, 32, 28, 24, 16, 20];
-        for &off in &preferred_offsets {
-            if off + 4 <= fmt.len() {
+
+    // 1. Direct offset 40 in fmt chunk (standard Sony WAVE_FORMAT_EXTENSIBLE ATRAC9)
+    if fmt.len() >= 44 && fmt[40] == 0xFE {
+        if let Ok(config_bytes) = fmt[40..44].try_into() {
+            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
+                decoder_opt = Some(dec);
+            }
+        }
+    }
+
+    // 2. Scan fmt chunk for any valid config starting with 0xFE
+    if decoder_opt.is_none() {
+        for off in 0..fmt.len().saturating_sub(3) {
+            if fmt[off] == 0xFE {
                 if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
                     if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                        if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                        decoder_opt = Some(dec);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Scan fact chunk fallback
+    if decoder_opt.is_none() {
+        if let Some(fact) = fact_data {
+            for off in 0..fact.len().saturating_sub(3) {
+                if fact[off] == 0xFE {
+                    if let Ok(config_bytes) = fact[off..off + 4].try_into() {
+                        if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
                             decoder_opt = Some(dec);
                             break;
                         }
@@ -718,30 +749,17 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
                 }
             }
         }
-        if decoder_opt.is_none() {
-            if let Some(fact) = fact_data {
-                for off in [0, 4, 8, 12] {
-                    if off + 4 <= fact.len() {
-                        if let Ok(config_bytes) = fact[off..off + 4].try_into() {
-                            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                                if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
-                                    decoder_opt = Some(dec);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if decoder_opt.is_none() {
-            for off in 0..fmt.len().saturating_sub(4) {
-                if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
+    }
+
+    // 4. Scan the first 128 bytes of the RIFF file header
+    if decoder_opt.is_none() {
+        let scan_limit = at9_bytes.len().min(128);
+        for off in 0..scan_limit.saturating_sub(3) {
+            if at9_bytes[off] == 0xFE {
+                if let Ok(config_bytes) = at9_bytes[off..off + 4].try_into() {
                     if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                        if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
-                            decoder_opt = Some(dec);
-                            break;
-                        }
+                        decoder_opt = Some(dec);
+                        break;
                     }
                 }
             }
@@ -749,29 +767,36 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     }
 
     let mut decoder = decoder_opt?;
-    let frame_bytes = decoder.config().frame_bytes as usize;
-    let frame_samples = decoder.config().frame_samples as usize;
-    let channels = decoder.config().channel_count as usize;
-    let sample_rate = decoder.config().sample_rate as u32;
+    let config = decoder.config();
+    let frame_bytes = config.frame_bytes as usize;
+    let superframe_index = config.superframe_index as usize;
+    let frames_in_superframe = 1usize << superframe_index;
+    let superframe_bytes = frame_bytes * frames_in_superframe;
+    let channels = config.channel_count as usize;
+    let frame_samples = config.frame_samples as usize;
+    let superframe_samples = channels * frame_samples * frames_in_superframe;
+    let sample_rate = config.sample_rate as u32;
 
-    if frame_bytes == 0 || channels == 0 || frame_samples == 0 || data.is_empty() {
+    if superframe_bytes == 0 || channels == 0 || superframe_samples == 0 || data.is_empty() {
         return None;
     }
 
     let mut all_pcm: Vec<i16> = Vec::new();
-    let mut frame_pcm = vec![0i16; frame_samples * channels];
+    let mut superframe_pcm = vec![0i16; superframe_samples];
     let mut offset = 0;
 
-    let max_frames = (sample_rate as usize * 30) / frame_samples;
-    let mut frames_decoded = 0;
+    let max_superframes = (sample_rate as usize * 60) / (frame_samples * frames_in_superframe);
+    let mut superframes_decoded = 0;
 
-    while offset + frame_bytes <= data.len() && frames_decoded < max_frames {
-        let frame_slice = &data[offset..offset + frame_bytes];
-        if decoder.decode(frame_slice, &mut frame_pcm).is_ok() {
-            all_pcm.extend_from_slice(&frame_pcm);
-            frames_decoded += 1;
+    while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
+        let frame_slice = &data[offset..offset + superframe_bytes];
+        if decoder.decode(frame_slice, &mut superframe_pcm).is_ok() {
+            all_pcm.extend_from_slice(&superframe_pcm);
+            superframes_decoded += 1;
+            offset += superframe_bytes;
+        } else {
+            offset += superframe_bytes.max(frame_bytes);
         }
-        offset += frame_bytes;
     }
 
     if all_pcm.is_empty() {
@@ -781,21 +806,24 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     let pcm_bytes_len = (all_pcm.len() * 2) as u32;
     let mut wav = Vec::with_capacity(44 + pcm_bytes_len as usize);
 
+    // RIFF header
     wav.extend_from_slice(b"RIFF");
     wav.extend_from_slice(&(36 + pcm_bytes_len).to_le_bytes());
     wav.extend_from_slice(b"WAVE");
 
+    // fmt subchunk
     wav.extend_from_slice(b"fmt ");
-    wav.extend_from_slice(&16u32.to_le_bytes());
-    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&16u32.to_le_bytes()); // Subchunk1Size = 16 for PCM
+    wav.extend_from_slice(&1u16.to_le_bytes());  // AudioFormat = 1 (PCM)
     wav.extend_from_slice(&(channels as u16).to_le_bytes());
     wav.extend_from_slice(&sample_rate.to_le_bytes());
     let byte_rate = sample_rate * (channels as u32) * 2;
     wav.extend_from_slice(&byte_rate.to_le_bytes());
     let block_align = (channels as u16) * 2;
     wav.extend_from_slice(&block_align.to_le_bytes());
-    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes()); // BitsPerSample = 16
 
+    // data subchunk
     wav.extend_from_slice(b"data");
     wav.extend_from_slice(&pcm_bytes_len.to_le_bytes());
     for s in all_pcm {

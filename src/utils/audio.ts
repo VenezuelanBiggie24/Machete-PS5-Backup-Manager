@@ -486,78 +486,108 @@ export const playSuccessSound = () => {
  */
 let bgmSourceNode: AudioBufferSourceNode | null = null;
 let bgmGainNode: GainNode | null = null;
-let currentBgmAudio: HTMLAudioElement | null = null;
 let currentBgmPath: string | null = null;
-let currentBlobUrl: string | null = null;
 
 export const isBgmPlaying = () => {
-  if (bgmSourceNode) return true;
-  return currentBgmAudio !== null && !currentBgmAudio.paused;
+  return bgmSourceNode !== null;
 };
+
+// Convert Base64 WAV/PCM to AudioBuffer reliably in WebKit
+async function decodeAudioDataReliable(ctx: AudioContext, arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+  try {
+    return await new Promise<AudioBuffer>((resolve, reject) => {
+      const res = ctx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
+      if (res && typeof (res as any).then === 'function') {
+        (res as any).then(resolve).catch(reject);
+      }
+    });
+  } catch (nativeErr) {
+    // Direct manual WAV PCM parser fallback if WebKit CoreAudio rejects header
+    const dataView = new DataView(arrayBuffer);
+    const riff = String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4));
+    if (riff === 'RIFF') {
+      let offset = 12;
+      let channels = 2;
+      let sampleRate = 48000;
+      let bitsPerSample = 16;
+      let dataOffset = 0;
+      let dataSize = 0;
+
+      while (offset < arrayBuffer.byteLength - 8) {
+        const chunkId = String.fromCharCode(...new Uint8Array(arrayBuffer, offset, 4));
+        const chunkSize = dataView.getUint32(offset + 4, true);
+        if (chunkId === 'fmt ') {
+          channels = dataView.getUint16(offset + 10, true);
+          sampleRate = dataView.getUint32(offset + 12, true);
+          bitsPerSample = dataView.getUint16(offset + 22, true);
+        } else if (chunkId === 'data') {
+          dataOffset = offset + 8;
+          dataSize = chunkSize;
+          break;
+        }
+        offset += 8 + chunkSize;
+      }
+
+      if (dataOffset > 0 && bitsPerSample === 16) {
+        const numSamples = Math.floor(dataSize / (2 * channels));
+        const audioBuf = ctx.createBuffer(channels, numSamples, sampleRate);
+        for (let ch = 0; ch < channels; ch++) {
+          const channelData = audioBuf.getChannelData(ch);
+          let sampleIdx = 0;
+          for (let i = dataOffset + ch * 2; i < dataOffset + dataSize && sampleIdx < numSamples; i += channels * 2) {
+            const intSample = dataView.getInt16(i, true);
+            channelData[sampleIdx++] = intSample / 32768.0;
+          }
+        }
+        return audioBuf;
+      }
+    }
+    throw nativeErr;
+  }
+}
 
 export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
   try {
     if (isMuted) return;
-    if (currentBgmPath === gamePath && isBgmPlaying()) {
-      return;
-    }
+    if (currentBgmPath === gamePath && isBgmPlaying()) return;
+
     stopBgmTheme(false);
     currentBgmPath = gamePath || null;
 
-    unlockAudio();
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
+      await ctx.resume().catch(() => {});
+    }
 
-    // 1. Primary: Standard HTML5 Blob Audio (Universal support in WebKit/Safari/WebView2)
     const parts = audioDataUri.split(',');
     if (parts.length < 2) return;
     const base64Data = parts[1];
     if (!base64Data) return;
 
-    const mimeMatch = parts[0].match(/:(.*?);/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
-
     const binaryString = atob(base64Data);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    try {
-      const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      currentBlobUrl = url;
-      const audio = new Audio(url);
-      audio.loop = true;
-      audio.volume = 0.70;
-      currentBgmAudio = audio;
-      await audio.play();
-      return;
-    } catch (htmlAudioErr) {
-      console.warn("HTML5 audio playback error, falling back to Web Audio API:", htmlAudioErr);
-    }
+    const audioBuffer = await decodeAudioDataReliable(ctx, bytes.buffer);
 
-    // 2. Fallback: Web Audio API
-    try {
-      const ctx = getAudioContext();
-      if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-        await ctx.resume().catch(() => {});
-      }
-      const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      source.buffer = buffer;
-      source.loop = true;
-      const now = ctx.currentTime + 0.01;
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.70, now + 0.3);
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start(now);
-      bgmSourceNode = source;
-      bgmGainNode = gain;
-    } catch (webAudioErr) {
-      console.error("Web Audio fallback error:", webAudioErr);
-    }
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+
+    source.buffer = audioBuffer;
+    source.loop = true;
+
+    const now = ctx.currentTime + 0.02;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.65, now + 0.35);
+
+    source.connect(gain);
+    gain.connect(ctx.destination);
+
+    source.start(now);
+    bgmSourceNode = source;
+    bgmGainNode = gain;
   } catch (e) {
     console.error("playBgmTheme error:", e);
   }
@@ -565,22 +595,6 @@ export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
 
 export const stopBgmTheme = (_smooth = true) => {
   currentBgmPath = null;
-
-  if (currentBlobUrl) {
-    try {
-      URL.revokeObjectURL(currentBlobUrl);
-    } catch (_) {}
-    currentBlobUrl = null;
-  }
-
-  if (currentBgmAudio) {
-    try {
-      currentBgmAudio.pause();
-      currentBgmAudio.currentTime = 0;
-    } catch (_) {}
-    currentBgmAudio = null;
-  }
-
   if (bgmSourceNode && bgmGainNode) {
     const source = bgmSourceNode;
     const gain = bgmGainNode;
