@@ -851,6 +851,40 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
         }
 
         if p.is_dir() {
+            let direct_candidates = [
+                (p.join("sce_sys").join("snd0.at9"), "at9"),
+                (p.join("SCE_SYS").join("snd0.at9"), "at9"),
+                (p.join("sce_sys").join("SND0.AT9"), "at9"),
+                (p.join("SCE_SYS").join("SND0.AT9"), "at9"),
+                (p.join("snd0.at9"), "at9"),
+                (p.join("SND0.AT9"), "at9"),
+                (p.join("sce_sys").join("snd0.wav"), "wav"),
+                (p.join("sce_sys").join("snd0.mp3"), "mp3"),
+            ];
+            for (cand, kind) in direct_candidates {
+                if cand.exists() {
+                    if let Ok(mut f) = fs::File::open(&cand) {
+                        let mut buf = Vec::new();
+                        if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                            if kind == "at9" {
+                                if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
+                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
+                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
+                                }
+                            } else {
+                                let mime = match kind {
+                                    "wav" => "audio/wav",
+                                    "mp3" => "audio/mpeg",
+                                    _ => "audio/wav",
+                                };
+                                let b64 = general_purpose::STANDARD.encode(&buf);
+                                return Ok(Some(format!("data:{};base64,{}", mime, b64)));
+                            }
+                        }
+                    }
+                }
+            }
+
             if let Some((audio_path, kind)) = find_game_audio_file(p, 0) {
                 if let Ok(mut f) = fs::File::open(&audio_path) {
                     let mut buf = Vec::new();
@@ -1195,7 +1229,7 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
                 let size_bytes = if !is_dir {
                     fs::metadata(&path_buf).map(|m| m.len()).unwrap_or(0)
                 } else {
-                    calculate_dir_size(&path_buf)
+                    0
                 };
                 
                 Some(FileItem {

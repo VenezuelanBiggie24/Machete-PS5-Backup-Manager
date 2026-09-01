@@ -234,7 +234,7 @@ export function GameCard({
               </h3>
             </div>
             <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1">
-              <span>{file.size_bytes ? formatBytes(file.size_bytes) : t("calculating")}</span>
+              <span>{file.size_bytes ? formatBytes(file.size_bytes) : (file.is_dir ? t("format_folder") : t("format_container"))}</span>
               <span>{file.is_dir ? t("format_folder") : t("format_container")}</span>
             </div>
           </div>
