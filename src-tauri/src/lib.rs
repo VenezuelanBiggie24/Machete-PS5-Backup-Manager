@@ -39,6 +39,7 @@ use tauri::Manager;
 use base64::{Engine as _, engine::general_purpose};
 use std::io::Read;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct CustomMeta {
@@ -969,6 +970,168 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+pub struct NativeAudioPlayer {
+    current_process: Arc<Mutex<Option<std::process::Child>>>,
+}
+
+impl NativeAudioPlayer {
+    fn new() -> Self {
+        Self {
+            current_process: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn play_pcm_wav(&self, wav_data: &[u8], volume: f32) -> Result<(), String> {
+        self.stop();
+
+        let temp_file = std::env::temp_dir().join("machete_preview_audio.wav");
+        fs::write(&temp_file, wav_data).map_err(|e| e.to_string())?;
+
+        let vol_str = format!("{:.2}", volume.clamp(0.0, 1.0));
+
+        #[cfg(target_os = "macos")]
+        let mut cmd = {
+            let mut c = std::process::Command::new("/usr/bin/afplay");
+            c.arg("-v").arg(&vol_str).arg(&temp_file);
+            c
+        };
+
+        #[cfg(target_os = "windows")]
+        let mut cmd = {
+            let mut c = std::process::Command::new("powershell");
+            let script = format!(
+                "Add-Type -AssemblyName System.Media; $player = New-Object System.Media.SoundPlayer('{}'); $player.Play()",
+                temp_file.to_string_lossy().replace("'", "''")
+            );
+            c.arg("-NoProfile").arg("-NonInteractive").arg("-Command").arg(script);
+            c
+        };
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let mut cmd = {
+            let mut c = std::process::Command::new("paplay");
+            c.arg(&temp_file);
+            c
+        };
+
+        if let Ok(child) = cmd.spawn() {
+            let mut current = self.current_process.lock().unwrap();
+            *current = Some(child);
+        }
+
+        Ok(())
+    }
+
+    fn stop(&self) {
+        let mut current = self.current_process.lock().unwrap();
+        if let Some(mut child) = current.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+pub type AudioState = Arc<Mutex<NativeAudioPlayer>>;
+
+#[tauri::command]
+async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>) -> Result<bool, String> {
+    let wav_bytes = tauri::async_runtime::spawn_blocking(move || -> Option<Vec<u8>> {
+        let p = Path::new(&path);
+        if !p.exists() {
+            return None;
+        }
+
+        if p.is_dir() {
+            let direct_candidates = [
+                (p.join("sce_sys").join("snd0.at9"), "at9"),
+                (p.join("SCE_SYS").join("snd0.at9"), "at9"),
+                (p.join("sce_sys").join("SND0.AT9"), "at9"),
+                (p.join("SCE_SYS").join("SND0.AT9"), "at9"),
+                (p.join("snd0.at9"), "at9"),
+                (p.join("SND0.AT9"), "at9"),
+                (p.join("sce_sys").join("snd0.wav"), "wav"),
+                (p.join("sce_sys").join("snd0.mp3"), "mp3"),
+            ];
+            for (cand, kind) in direct_candidates {
+                if cand.exists() {
+                    if let Ok(mut f) = fs::File::open(&cand) {
+                        let mut buf = Vec::new();
+                        if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                            if kind == "at9" {
+                                if let Some(wav) = decode_at9_to_wav(&buf) {
+                                    return Some(wav);
+                                }
+                            } else {
+                                return Some(buf);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some((audio_path, kind)) = find_game_audio_file(p, 0) {
+                if let Ok(mut f) = fs::File::open(&audio_path) {
+                    let mut buf = Vec::new();
+                    if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                        if kind == "at9" {
+                            if let Some(wav) = decode_at9_to_wav(&buf) {
+                                return Some(wav);
+                            }
+                        } else {
+                            return Some(buf);
+                        }
+                    }
+                }
+            }
+        } else {
+            if let Ok(file) = fs::File::open(p) {
+                let mut buffer = Vec::new();
+                let mut reader = file.take(128 * 1024 * 1024);
+                if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
+                    let slice = &buffer[..];
+                    for i in 0..slice.len().saturating_sub(64) {
+                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
+                            let format_id = &slice[i+8..i+12];
+                            if format_id == b"WAVE" || format_id == b"AT9 " {
+                                let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
+                                let at9_slice = if i + riff_size <= slice.len() {
+                                    &slice[i..i + riff_size]
+                                } else {
+                                    &slice[i..]
+                                };
+                                if let Some(wav) = decode_at9_to_wav(at9_slice) {
+                                    return Some(wav);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }).await.map_err(|e| e.to_string())?;
+
+    if let Some(wav) = wav_bytes {
+        let player = state.inner().lock().unwrap();
+        player.play_pcm_wav(&wav, 0.65)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+fn stop_game_soundtrack(state: tauri::State<'_, AudioState>) -> Result<(), String> {
+    let player = state.inner().lock().unwrap();
+    player.stop();
+    Ok(())
+}
+
+#[tauri::command]
+fn set_game_soundtrack_volume(_volume: f32, _state: tauri::State<'_, AudioState>) -> Result<(), String> {
+    Ok(())
+}
+
 fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
     let mut ppsa = None;
     let mut local_title = None;
@@ -1676,6 +1839,8 @@ pub fn run() {
                     }
                 });
             }
+            let audio_state: AudioState = Arc::new(Mutex::new(NativeAudioPlayer::new()));
+            app.manage(audio_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1688,7 +1853,10 @@ pub fn run() {
             delete_file, 
             transfer_items,
             open_in_file_manager,
-            get_game_audio
+            get_game_audio,
+            play_game_soundtrack,
+            stop_game_soundtrack,
+            set_game_soundtrack_volume
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1787,5 +1955,16 @@ mod tests {
         assert_eq!(inspect.category, Some("gd".to_string()));
 
         let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_at9_config_and_decoder_validation() {
+        let config_bytes = [0xFE, 0x74, 0x17, 0xF0];
+        let dec = atrac9dec::Atrac9Decoder::new(&config_bytes);
+        assert!(dec.is_ok());
+        let decoder = dec.unwrap();
+        assert_eq!(decoder.config().sample_rate, 48000);
+        assert_eq!(decoder.config().channel_count, 2);
+        assert_eq!(decoder.config().frame_bytes, 192);
     }
 }

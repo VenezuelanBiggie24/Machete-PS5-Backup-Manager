@@ -43,13 +43,20 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
 
   useEffect(() => {
     let active = true;
-    // Attempt to load native game soundtrack (snd0.at9 / audio stream)
+
+    // Trigger dual-engine soundtrack playback immediately
+    if (game?.path) {
+      playBgmTheme(game.path, game.path).then(() => {
+        if (active) setIsPlayingAudio(true);
+      });
+    }
+
+    // Fetch audio data URI for visualizer & fallback
     invoke<string | null>('get_game_audio', { path: game?.path })
       .then((uri) => {
         if (!active) return;
         if (uri) {
           setAudioUri(uri);
-          playBgmTheme(uri, game.path);
           setIsPlayingAudio(true);
         } else {
           // Play atmospheric PS5 game focus chime
@@ -70,12 +77,11 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
   }, [game?.path]);
 
   const toggleSoundtrack = () => {
-    if (!audioUri) return;
     if (isPlayingAudio) {
       stopBgmTheme();
       setIsPlayingAudio(false);
-    } else {
-      playBgmTheme(audioUri, game.path);
+    } else if (game?.path) {
+      playBgmTheme(audioUri || game.path, game.path);
       setIsPlayingAudio(true);
     }
   };
