@@ -535,8 +535,12 @@ export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
       console.warn("Web Audio decodeAudioData failed, falling back to Blob audio element:", decodeErr);
     }
 
+    // Extract MIME type from data URI
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
+
     // Fallback: Blob URL on HTMLAudioElement
-    const blob = new Blob([bytes], { type: 'audio/wav' });
+    const blob = new Blob([bytes], { type: mimeType });
     const url = URL.createObjectURL(blob);
     currentBlobUrl = url;
     const audio = new Audio(url);
