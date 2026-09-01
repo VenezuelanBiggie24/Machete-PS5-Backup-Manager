@@ -605,23 +605,23 @@ fn format_ps5_app_version(raw: &str) -> Option<String> {
         return Some(without_0x.to_string());
     }
 
-    // 2. Hex / BCD format: e.g. "0x01000000" -> "1.00", "0x01020000" -> "1.02"
-    let hex_candidate = if clean.chars().all(|c| c.is_ascii_digit()) && clean.len() >= 8 {
-        if let Ok(num) = clean.parse::<u64>() {
-            format!("{:08x}", num)
-        } else {
-            without_0x.to_string()
-        }
-    } else {
-        without_0x.to_string()
-    };
-
-    if hex_candidate.chars().all(|c| c.is_ascii_hexdigit()) {
-        let pad_str = format!("{:0>8}", hex_candidate);
-        if pad_str.len() >= 4 {
-            let major_str = pad_str[0..2].trim_start_matches('0');
+    // 2. Hex / BCD format: e.g. "0102" -> "1.02", "0x01000000" -> "1.00", "0x01020000" -> "1.02"
+    if without_0x.chars().all(|c| c.is_ascii_hexdigit()) {
+        if without_0x.len() == 4 {
+            let major_str = without_0x[0..2].trim_start_matches('0');
             let major_final = if major_str.is_empty() { "1" } else { major_str };
-            let minor_str = &pad_str[2..4];
+            let minor_str = &without_0x[2..4];
+            return Some(format!("{}.{}", major_final, minor_str));
+        } else if without_0x.len() >= 8 {
+            let major_str = without_0x[0..2].trim_start_matches('0');
+            let major_final = if major_str.is_empty() { "1" } else { major_str };
+            let minor_str = &without_0x[2..4];
+            return Some(format!("{}.{}", major_final, minor_str));
+        } else if let Ok(num) = without_0x.parse::<u64>() {
+            let hex_str = format!("{:08x}", num);
+            let major_str = hex_str[0..2].trim_start_matches('0');
+            let major_final = if major_str.is_empty() { "1" } else { major_str };
+            let minor_str = &hex_str[2..4];
             return Some(format!("{}.{}", major_final, minor_str));
         }
     }
@@ -1615,4 +1615,100 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_format_sdk_version_bcd() {
+        // PS5 firmware versions in BCD hex strings
+        assert_eq!(format_ps5_sdk_version("0x10010000"), Some("10.01".to_string()));
+        assert_eq!(format_ps5_sdk_version("0x08020000"), Some("8.02".to_string()));
+        assert_eq!(format_ps5_sdk_version("0x04500000"), Some("4.50".to_string()));
+        assert_eq!(format_ps5_sdk_version("0x01020000"), Some("1.02".to_string()));
+        assert_eq!(format_ps5_sdk_version("10.01"), Some("10.01".to_string()));
+        assert_eq!(format_ps5_sdk_version("8.02"), Some("8.02".to_string()));
+    }
+
+    #[test]
+    fn test_format_app_version() {
+        assert_eq!(format_ps5_app_version("01.02"), Some("1.02".to_string()));
+        assert_eq!(format_ps5_app_version("0102"), Some("1.02".to_string()));
+        assert_eq!(format_ps5_app_version("0x01050000"), Some("1.05".to_string()));
+        assert_eq!(format_ps5_app_version("1.00"), Some("1.00".to_string()));
+    }
+
+    #[test]
+    fn test_audio_file_discovery_recursive() {
+        let temp_dir = std::env::temp_dir().join("machete_test_audio_discovery");
+        let _ = fs::remove_dir_all(&temp_dir);
+        let sce_sys_dir = temp_dir.join("PPSA01234_00").join("sce_sys");
+        fs::create_dir_all(&sce_sys_dir).unwrap();
+
+        let audio_file = sce_sys_dir.join("snd0.at9");
+        fs::write(&audio_file, b"MOCK_AT9_DATA").unwrap();
+
+        let found = find_game_audio_file(&temp_dir, 0);
+        assert!(found.is_some());
+        let (path, kind) = found.unwrap();
+        assert_eq!(kind, "at9");
+        assert_eq!(path, audio_file);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_decode_pcm_wav_passthrough() {
+        // Create a standard 44-byte PCM WAV header
+        let mut mock_wav = Vec::new();
+        mock_wav.extend_from_slice(b"RIFF");
+        mock_wav.extend_from_slice(&40u32.to_le_bytes()); // total size - 8
+        mock_wav.extend_from_slice(b"WAVE");
+        mock_wav.extend_from_slice(b"fmt ");
+        mock_wav.extend_from_slice(&16u32.to_le_bytes()); // fmt size
+        mock_wav.extend_from_slice(&1u16.to_le_bytes());  // wFormatTag = 1 (PCM)
+        mock_wav.extend_from_slice(&2u16.to_le_bytes());  // nChannels = 2
+        mock_wav.extend_from_slice(&48000u32.to_le_bytes()); // nSamplesPerSec
+        mock_wav.extend_from_slice(&(48000 * 4u32).to_le_bytes()); // nAvgBytesPerSec
+        mock_wav.extend_from_slice(&4u16.to_le_bytes());  // nBlockAlign
+        mock_wav.extend_from_slice(&16u16.to_le_bytes()); // wBitsPerSample
+        mock_wav.extend_from_slice(b"data");
+        mock_wav.extend_from_slice(&4u32.to_le_bytes());  // data size
+        mock_wav.extend_from_slice(&[0, 0, 0, 0]);
+
+        let decoded = decode_at9_to_wav(&mock_wav);
+        assert!(decoded.is_some());
+        assert_eq!(decoded.unwrap(), mock_wav);
+    }
+
+    #[test]
+    fn test_inspect_ps5_item_folder_dump() {
+        let temp_dir = std::env::temp_dir().join("machete_test_folder_inspect");
+        let _ = fs::remove_dir_all(&temp_dir);
+        let sce_sys_dir = temp_dir.join("sce_sys");
+        fs::create_dir_all(&sce_sys_dir).unwrap();
+
+        let param_json = r#"{
+            "titleId": "PPSA01234",
+            "titleName": "Demon's Souls Remake",
+            "appVer": "01.03",
+            "sdkVersion": "0x08020000",
+            "requiredSystemSoftwareVersion": "0x08020000",
+            "category": "gd"
+        }"#;
+        fs::write(sce_sys_dir.join("param.json"), param_json).unwrap();
+
+        let inspect = inspect_ps5_item(&temp_dir);
+        assert_eq!(inspect.ppsa, Some("PPSA01234".to_string()));
+        assert_eq!(inspect.local_title, Some("Demon's Souls Remake".to_string()));
+        assert_eq!(inspect.app_ver, Some("1.03".to_string()));
+        assert_eq!(inspect.sdk_ver, Some("8.02".to_string()));
+        assert_eq!(inspect.min_firmware, Some("8.02".to_string()));
+        assert_eq!(inspect.category, Some("gd".to_string()));
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }
