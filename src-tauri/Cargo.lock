@@ -2267,6 +2267,7 @@ dependencies = [
  "blake3",
  "fs_extra",
  "futures",
+ "libc",
  "regex",
  "reqwest",
  "serde",

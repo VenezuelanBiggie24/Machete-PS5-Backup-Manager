@@ -34,6 +34,23 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "Spanish",
+          "French",
+          "German",
+          "Italian",
+          "Japanese",
+          "Portuguese",
+          "Russian",
+          "Korean",
+          "SimpChinese"
+        ]
+      }
+    },
     "createUpdaterArtifacts": "v1Compatible"
   },
   "plugins": {

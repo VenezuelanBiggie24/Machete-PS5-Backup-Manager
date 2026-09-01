@@ -1097,6 +1097,46 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+#[cfg(target_os = "windows")]
+fn make_writable_recursively_win(path: &Path) {
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        if permissions.readonly() {
+            permissions.set_readonly(false);
+            let _ = fs::set_permissions(path, permissions);
+        }
+    }
+    if path.is_dir() {
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                make_writable_recursively_win(&entry.path());
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+fn force_make_writable_recursive_unix(p: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = fs::symlink_metadata(p) {
+        if !meta.file_type().is_symlink() {
+            let mut perms = meta.permissions();
+            let mode = perms.mode();
+            if mode & 0o200 == 0 {
+                perms.set_mode(mode | 0o700);
+                let _ = fs::set_permissions(p, perms);
+            }
+            if p.is_dir() {
+                if let Ok(entries) = fs::read_dir(p) {
+                    for entry in entries.flatten() {
+                        force_make_writable_recursive_unix(&entry.path());
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 async fn open_in_file_manager(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1111,10 +1151,42 @@ async fn open_in_file_manager(path: String) -> Result<(), String> {
         }
         #[cfg(target_os = "windows")]
         {
-            let _ = std::process::Command::new("explorer").arg(format!("/select,\"{}\"", path)).spawn();
+            let clean_path = path.trim_start_matches(r"\\?\").replace('/', r"\");
+            let _ = std::process::Command::new("explorer")
+                .arg(format!("/select,{}", clean_path))
+                .spawn();
         }
         #[cfg(target_os = "linux")]
         {
+            let canonical_path = p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+            let uri = format!("file://{}", canonical_path.to_string_lossy());
+
+            // 1. FreeDesktop D-Bus ShowItems (GNOME, KDE Plasma, SteamOS, Nemo)
+            let dbus_res = std::process::Command::new("dbus-send")
+                .args([
+                    "--session",
+                    "--dest=org.freedesktop.FileManager1",
+                    "--type=method_call",
+                    "/org/freedesktop/FileManager1",
+                    "org.freedesktop.FileManager1.ShowItems",
+                    &format!("array:string:\"{}\"", uri),
+                    "string:\"\""
+                ])
+                .status();
+
+            if dbus_res.map(|s| s.success()).unwrap_or(false) {
+                return Ok(());
+            }
+
+            // 2. Desktop-specific direct select handlers
+            if std::process::Command::new("dolphin").arg("--select").arg(&canonical_path).spawn().is_ok() {
+                return Ok(());
+            }
+            if std::process::Command::new("nautilus").arg("--select").arg(&canonical_path).spawn().is_ok() {
+                return Ok(());
+            }
+
+            // 3. Fallback: xdg-open parent
             let parent = p.parent().unwrap_or(p);
             let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
         }
@@ -1125,22 +1197,44 @@ async fn open_in_file_manager(path: String) -> Result<(), String> {
 #[tauri::command]
 async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        let p = Path::new(&path);
+        let target = if p.exists() { p } else { Path::new("/") };
+
+        #[cfg(unix)]
+        {
+            use std::ffi::CString;
+            use std::os::unix::ffi::OsStrExt;
+            use std::mem::MaybeUninit;
+
+            if let Ok(c_path) = CString::new(target.as_os_str().as_bytes()) {
+                let mut stat: MaybeUninit<libc::statvfs> = MaybeUninit::uninit();
+                if unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) } == 0 {
+                    let stat = unsafe { stat.assume_init() };
+                    let block_size = if stat.f_frsize > 0 { stat.f_frsize as u64 } else { stat.f_bsize as u64 };
+                    let total = stat.f_blocks as u64 * block_size;
+                    let free = stat.f_bavail as u64 * block_size;
+                    if total > 0 {
+                        return Ok(DiskInfo { total, free });
+                    }
+                }
+            }
+        }
+
+        // Sysinfo fallback (Windows & Unix fallback)
         let disks = Disks::new_with_refreshed_list();
-        let raw_path = PathBuf::from(&path);
-        let target_path = raw_path.canonicalize().unwrap_or(raw_path);
-        
+        let clean_path = path.trim_start_matches(r"\\?\").replace('/', r"\");
+        let normalized_input = clean_path.to_uppercase();
+
         let mut best_match: Option<&sysinfo::Disk> = None;
-        let mut longest_prefix = 0;
+        let mut longest_len = 0;
 
         for disk in disks.iter() {
-            let mount = disk.mount_point();
-            let canonical_mount = mount.canonicalize().unwrap_or_else(|_| mount.to_path_buf());
-            if target_path.starts_with(&canonical_mount) {
-                let prefix_len = canonical_mount.components().count();
-                if prefix_len > longest_prefix {
-                    longest_prefix = prefix_len;
-                    best_match = Some(disk);
-                }
+            let mount_str = disk.mount_point().to_string_lossy();
+            let clean_mount = mount_str.trim_start_matches(r"\\?\").replace('/', r"\").to_uppercase();
+            
+            if normalized_input.starts_with(&clean_mount) && clean_mount.len() > longest_len {
+                longest_len = clean_mount.len();
+                best_match = Some(disk);
             }
         }
 
@@ -1150,7 +1244,18 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
                 free: disk.available_space(),
             })
         } else {
-            Err("Could not determine disk for the given path".into())
+            // Fallback by drive letter on Windows
+            let drive_char = normalized_input.chars().next().unwrap_or('C');
+            for disk in disks.iter() {
+                let mount = disk.mount_point().to_string_lossy().to_uppercase();
+                if mount.starts_with(drive_char) {
+                    return Ok(DiskInfo {
+                        total: disk.total_space(),
+                        free: disk.available_space(),
+                    });
+                }
+            }
+            Err("Could not determine disk space for path".into())
         }
     }).await.map_err(|e| e.to_string())?
 }
@@ -1158,17 +1263,42 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
 #[tauri::command]
 async fn delete_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path_buf = Path::new(&path);
-        if path.trim().is_empty() || path_buf.parent().is_none() || path == "/" || path == "\\" {
+        let clean_path = path.trim().trim_start_matches(r"\\?\").replace('/', r"\");
+        let path_buf = Path::new(&clean_path);
+        
+        let is_win_drive_root = clean_path.len() <= 3 && clean_path.chars().nth(1) == Some(':');
+        if clean_path.is_empty() || is_win_drive_root || path_buf.parent().is_none() || clean_path == "/" || clean_path == "\\" {
             return Err("Invalid or protected root path provided for deletion".into());
         }
         if !path_buf.exists() {
             return Err("Path does not exist".into());
         }
-        if path_buf.is_dir() {
-            fs::remove_dir_all(path_buf).map_err(|e| e.to_string())
+
+        #[cfg(target_os = "windows")]
+        make_writable_recursively_win(path_buf);
+
+        let remove_res = if path_buf.is_dir() {
+            fs::remove_dir_all(path_buf)
         } else {
-            fs::remove_file(path_buf).map_err(|e| e.to_string())
+            fs::remove_file(path_buf)
+        };
+
+        match remove_res {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                #[cfg(unix)]
+                {
+                    force_make_writable_recursive_unix(path_buf);
+                    if path_buf.is_dir() {
+                        fs::remove_dir_all(path_buf).map_err(|err| err.to_string())
+                    } else {
+                        fs::remove_file(path_buf).map_err(|err| err.to_string())
+                    }
+                }
+                #[cfg(not(unix))]
+                Err(e.to_string())
+            }
+            Err(e) => Err(e.to_string()),
         }
     }).await.map_err(|e| e.to_string())?
 }
