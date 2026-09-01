@@ -23,6 +23,17 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.3.0 - Actualización Mayor Multiplataforma, Audio ATRAC9 y Diagnóstico Exacto",
+      "items": [
+        "Decodificador nativo en Rust de Sony ATRAC9 y reproductor Web Audio API en streaming para música oficial (snd0.at9).",
+        "Detección y formateo decimal exacto de versiones del SDK (SDK 9.00, SDK 8.50, SDK 7.61) y versión del título (v1.00, v1.02) sin cadenas hexadecimales.",
+        "Blindaje total para Windows: corrección de rutas en explorer.exe, remoción automática de atributos de solo lectura y cálculo exacto de espacio.",
+        "Blindaje total para Linux: llamadas POSIX statvfs para Steam Deck / UDisks2, integración D-Bus ShowItems e insensibilidad a mayúsculas/minúsculas.",
+        "Innovaciones para macOS: indicador de progreso en tiempo real en la insignia del Dock (NSDockTile) y clonación instantánea APFS Copy-on-Write.",
+        "Instalador NSIS multi-idioma (10 idiomas) en modo usuario y optimización de caché de compilación en GitHub Actions."
+      ]
+    },
+    {
       "version": "v2.1.2 - Parche del Motor de Audio y Optimización de Síntesis",
       "items": [
         "Resuelta la excepción de curva exponencial con valor cero en WebKit AudioContext.",

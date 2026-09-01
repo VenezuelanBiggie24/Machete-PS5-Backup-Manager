@@ -147,6 +147,17 @@
   "mute_toggle_mute": "Mute Audio",
   "changelogs": [
     {
+      "version": "v2.3.0 - Major Multiplatform, ATRAC9 Audio Engine & Diagnostic Update",
+      "items": [
+        "Pure Rust Sony ATRAC9 native audio decoder and Web Audio API background streaming player for official soundtracks (snd0.at9).",
+        "Exact decimal SDK version detection (SDK 9.00, SDK 8.50, SDK 7.61) and Title App version (v1.00, v1.02) with zero raw hex strings.",
+        "Complete Windows hardening: explorer.exe argument fix, automatic read-only attribute stripping, and accurate drive space detection.",
+        "Complete Linux hardening: POSIX statvfs calls for Steam Deck / UDisks2, D-Bus ShowItems file manager selection, and case-insensitivity.",
+        "macOS innovations: live Dock progress badge (NSDockTile) during background transfers and instant APFS Copy-on-Write cloning.",
+        "Multi-language NSIS Windows installer (10 languages) in currentUser mode and build cache acceleration."
+      ]
+    },
+    {
       "version": "v2.2.0 - Pure ATRAC9 Audio Engine & Diagnostic Update",
       "items": [
         "Integrated pure Rust ATRAC9 native audio decoder for PlayStation 5 and PS4 snd0.at9 soundtracks.",
