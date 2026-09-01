@@ -650,7 +650,7 @@ fn format_json_val_app(val: &serde_json::Value) -> Option<String> {
 }
 
 fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
-    if at9_bytes.len() < 52 || &at9_bytes[0..4] != b"RIFF" {
+    if at9_bytes.len() < 44 || &at9_bytes[0..4] != b"RIFF" {
         return None;
     }
     let format_id = &at9_bytes[8..12];
@@ -683,11 +683,20 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     }
 
     let fmt = fmt_data?;
+
+    // Check if it's already a standard uncompressed PCM WAV (format tag 1)
+    if fmt.len() >= 2 {
+        let format_tag = u16::from_le_bytes(fmt[0..2].try_into().unwrap_or([0; 2]));
+        if format_tag == 1 {
+            return Some(at9_bytes.to_vec());
+        }
+    }
+
     let data = audio_data?;
 
     let mut decoder_opt = None;
     if fmt.len() >= 4 {
-        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48, 32, 28, 24];
+        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48, 32, 28, 24, 16, 20];
         for &off in &preferred_offsets {
             if off + 4 <= fmt.len() {
                 if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
@@ -788,7 +797,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
-    if depth > 5 {
+    if depth > 6 {
         return None;
     }
     if let Ok(entries) = fs::read_dir(dir) {
@@ -796,9 +805,12 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
         for entry in entries.flatten() {
             let path = entry.path();
             let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+            if name_lower.starts_with('.') {
+                continue;
+            }
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") || name_lower.contains("audio") || ext == "at9" {
+                if ext == "at9" || name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.contains("sound") || name_lower.contains("audio") {
                     match ext.as_str() {
                         "at9" => return Some((path, "at9".to_string())),
                         "wav" => return Some((path, "wav".to_string())),
@@ -813,11 +825,8 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
             }
         }
         for sub in subdirs {
-            let sub_name = sub.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
-            if sub_name.contains("sce_sys") || sub_name.contains("sys") || sub_name.contains("sound") || sub_name.contains("audio") || sub_name.contains("game") || sub_name.contains("ps5") || sub_name.contains("content") || sub_name.contains("app") || sub_name.contains("usrdir") {
-                if let Some(res) = find_game_audio_file(&sub, depth + 1) {
-                    return Some(res);
-                }
+            if let Some(res) = find_game_audio_file(&sub, depth + 1) {
+                return Some(res);
             }
         }
     }
