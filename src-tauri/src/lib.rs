@@ -678,58 +678,9 @@ fn format_json_val_app(val: &serde_json::Value) -> Option<String> {
 }
 
 fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
-    if at9_bytes.len() < 44 || &at9_bytes[0..4] != b"RIFF" {
+    if at9_bytes.len() < 8 {
         return None;
     }
-    let format_id = &at9_bytes[8..12];
-    if format_id != b"WAVE" && format_id != b"AT9 " {
-        return None;
-    }
-
-    let mut pos = 12;
-    let mut fmt_data = None;
-    let mut fact_data = None;
-    let mut audio_data = None;
-
-    while pos + 8 <= at9_bytes.len() {
-        let chunk_id = &at9_bytes[pos..pos + 4];
-        let chunk_size = u32::from_le_bytes(at9_bytes[pos + 4..pos + 8].try_into().unwrap_or([0; 4])) as usize;
-        let data_start = pos + 8;
-        let data_end = (data_start + chunk_size).min(at9_bytes.len());
-
-        if chunk_id == b"fmt " {
-            fmt_data = Some(&at9_bytes[data_start..data_end]);
-        } else if chunk_id == b"fact" {
-            fact_data = Some(&at9_bytes[data_start..data_end]);
-        } else if chunk_id == b"data" {
-            audio_data = Some(&at9_bytes[data_start..data_end]);
-        }
-
-        pos = data_end;
-        if chunk_size % 2 != 0 {
-            pos += 1;
-        }
-    }
-
-    let fmt = fmt_data?;
-
-    // Check if it's already a standard uncompressed PCM WAV (format tag 1)
-    if fmt.len() >= 2 {
-        let format_tag = u16::from_le_bytes(fmt[0..2].try_into().unwrap_or([0; 2]));
-        if format_tag == 1 {
-            return Some(at9_bytes.to_vec());
-        }
-    }
-
-    let data = audio_data.unwrap_or_else(|| {
-        if pos < at9_bytes.len() {
-            &at9_bytes[pos..]
-        } else {
-            &at9_bytes[12..]
-        }
-    });
-
-    let mut decoder_opt = None;
 
     // Helper to probe ATRAC9 config words in normal and endian-swapped byte order
     let test_config = |slice: &[u8]| -> Option<atrac9dec::Atrac9Decoder> {
@@ -751,16 +702,63 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         None
     };
 
-    if let Some(dec) = test_config(fmt) {
-        decoder_opt = Some(dec);
-    }
-    if decoder_opt.is_none() {
-        if let Some(fact) = fact_data {
-            decoder_opt = test_config(fact);
+    let mut decoder_opt = None;
+    let mut data: &[u8] = at9_bytes;
+
+    if at9_bytes.len() >= 12 && &at9_bytes[0..4] == b"RIFF" {
+        let mut pos = 12;
+        let mut fmt_data = None;
+        let mut fact_data = None;
+        let mut audio_data = None;
+
+        while pos + 8 <= at9_bytes.len() {
+            let chunk_id = &at9_bytes[pos..pos + 4];
+            let chunk_size = u32::from_le_bytes(at9_bytes[pos + 4..pos + 8].try_into().unwrap_or([0; 4])) as usize;
+            let data_start = pos + 8;
+            let data_end = (data_start + chunk_size).min(at9_bytes.len());
+
+            if chunk_id == b"fmt " {
+                fmt_data = Some(&at9_bytes[data_start..data_end]);
+            } else if chunk_id == b"fact" {
+                fact_data = Some(&at9_bytes[data_start..data_end]);
+            } else if chunk_id == b"data" {
+                audio_data = Some(&at9_bytes[data_start..data_end]);
+            }
+
+            pos = data_end;
+            if chunk_size % 2 != 0 {
+                pos += 1;
+            }
+        }
+
+        if let Some(fmt) = fmt_data {
+            // If already uncompressed PCM WAV (format tag 1), return as is
+            if fmt.len() >= 2 {
+                let format_tag = u16::from_le_bytes(fmt[0..2].try_into().unwrap_or([0; 2]));
+                if format_tag == 1 {
+                    return Some(at9_bytes.to_vec());
+                }
+            }
+            decoder_opt = test_config(fmt);
+        }
+
+        if decoder_opt.is_none() {
+            if let Some(fact) = fact_data {
+                decoder_opt = test_config(fact);
+            }
+        }
+
+        if let Some(d) = audio_data {
+            data = d;
+        } else if pos < at9_bytes.len() {
+            data = &at9_bytes[pos..];
+        } else {
+            data = &at9_bytes[12..];
         }
     }
+
     if decoder_opt.is_none() {
-        let scan_limit = at9_bytes.len().min(256);
+        let scan_limit = at9_bytes.len().min(512);
         decoder_opt = test_config(&at9_bytes[..scan_limit]);
     }
 
@@ -991,8 +989,12 @@ impl NativeAudioPlayer {
 
         #[cfg(target_os = "macos")]
         let mut cmd = {
-            let mut c = std::process::Command::new("/usr/bin/afplay");
-            c.arg("-v").arg(&vol_str).arg(&temp_file);
+            let mut c = std::process::Command::new("sh");
+            c.arg("-c").arg(format!(
+                "while true; do /usr/bin/afplay -v {} '{}' 2>/dev/null; sleep 0.05; done",
+                vol_str,
+                temp_file.to_string_lossy().replace("'", "'\\''")
+            ));
             c
         };
 
@@ -1000,7 +1002,7 @@ impl NativeAudioPlayer {
         let mut cmd = {
             let mut c = std::process::Command::new("powershell");
             let script = format!(
-                "Add-Type -AssemblyName System.Media; $player = New-Object System.Media.SoundPlayer('{}'); $player.Play()",
+                "Add-Type -AssemblyName System.Media; $player = New-Object System.Media.SoundPlayer('{}'); $player.PlayLooping()",
                 temp_file.to_string_lossy().replace("'", "''")
             );
             c.arg("-NoProfile").arg("-NonInteractive").arg("-Command").arg(script);
@@ -1009,8 +1011,13 @@ impl NativeAudioPlayer {
 
         #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         let mut cmd = {
-            let mut c = std::process::Command::new("paplay");
-            c.arg(&temp_file);
+            let mut c = std::process::Command::new("sh");
+            c.arg("-c").arg(format!(
+                "while true; do (paplay '{}' || pw-play '{}' || aplay '{}') 2>/dev/null; sleep 0.05; done",
+                temp_file.to_string_lossy().replace("'", "'\\''"),
+                temp_file.to_string_lossy().replace("'", "'\\''"),
+                temp_file.to_string_lossy().replace("'", "'\\''")
+            ));
             c
         };
 
@@ -1027,6 +1034,10 @@ impl NativeAudioPlayer {
         if let Some(mut child) = current.take() {
             let _ = child.kill();
             let _ = child.wait();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("killall").arg("afplay").output();
         }
     }
 }
