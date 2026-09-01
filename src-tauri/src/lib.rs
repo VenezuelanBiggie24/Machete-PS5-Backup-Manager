@@ -370,41 +370,45 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
 
         // 2. Fetch metadata & artwork from Store/SerialStation
         if let Some((name, cover, region)) = get_product_data(&clean_ppsa) {
-            final_name = name;
-            final_region = region; // Keep original region flag
+            if !name.trim().is_empty() && name != clean_ppsa {
+                final_name = name;
+            }
+            if region.is_some() {
+                final_region = region;
+            }
             if final_cover.is_none() && cover.is_some() {
                 final_cover = cover;
             }
         }
         
-        // 2. If cover missing or empty, hit title-ids to get the game uuid (and real name)
-        if final_cover.is_none() {
+        // 3. Always resolve game title name from Title ID endpoint if not yet resolved
+        if final_name == clean_ppsa {
             let title_url = format!("https://api.serialstation.com/v1/title-ids/{}", clean_ppsa);
             if let Ok(fallback_res) = client.get(&title_url).send() {
                 if let Ok(fallback_json) = fallback_res.json::<serde_json::Value>() {
-                    if final_name == clean_ppsa {
-                        if let Some(name) = fallback_json.get("name").and_then(|n| n.as_str()) {
+                    if let Some(name) = fallback_json.get("name").and_then(|n| n.as_str()) {
+                        if !name.trim().is_empty() {
                             final_name = name.to_string();
                         }
                     }
                     
-                    // 3. Get the Game Object to find cross-region alternative PPSA IDs
-                    if let Some(games) = fallback_json.get("games").and_then(|g| g.as_array()) {
-                        if !games.is_empty() {
-                            if let Some(game_id) = games[0].get("id").and_then(|id| id.as_str()) {
-                                let game_url = format!("https://api.serialstation.com/v1/games/{}", game_id);
-                                if let Ok(game_res) = client.get(&game_url).send() {
-                                    if let Ok(game_json) = game_res.json::<serde_json::Value>() {
-                                        if let Some(title_ids) = game_json.get("title_ids").and_then(|t| t.as_array()) {
-                                            for t_id in title_ids {
-                                                if let Some(alt_ppsa) = t_id.as_str() {
-                                                    // Only try other PS5 (PPSA) codes
-                                                    if alt_ppsa.starts_with("PPSA") && alt_ppsa != clean_ppsa {
-                                                        // 4. Query alternative PPSA just for the image
-                                                        if let Some((_, alt_cover, _)) = get_product_data(alt_ppsa) {
-                                                            if alt_cover.is_some() {
-                                                                final_cover = alt_cover;
-                                                                break;
+                    // Cross-region alternative PPSA IDs for artwork fallback
+                    if final_cover.is_none() {
+                        if let Some(games) = fallback_json.get("games").and_then(|g| g.as_array()) {
+                            if !games.is_empty() {
+                                if let Some(game_id) = games[0].get("id").and_then(|id| id.as_str()) {
+                                    let game_url = format!("https://api.serialstation.com/v1/games/{}", game_id);
+                                    if let Ok(game_res) = client.get(&game_url).send() {
+                                        if let Ok(game_json) = game_res.json::<serde_json::Value>() {
+                                            if let Some(title_ids) = game_json.get("title_ids").and_then(|t| t.as_array()) {
+                                                for t_id in title_ids {
+                                                    if let Some(alt_ppsa) = t_id.as_str() {
+                                                        if alt_ppsa.starts_with("PPSA") && alt_ppsa != clean_ppsa {
+                                                            if let Some((_, alt_cover, _)) = get_product_data(alt_ppsa) {
+                                                                if alt_cover.is_some() {
+                                                                    final_cover = alt_cover;
+                                                                    break;
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -414,6 +418,20 @@ async fn fetch_metadata_rs(app: tauri::AppHandle, ppsa: String) -> Result<Metada
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Secondary Title Name & Info fallback from ProsperoPatches API
+        if final_name == clean_ppsa {
+            let prospero_url = format!("https://prosperopatches.com/api/{}", clean_ppsa);
+            if let Ok(prospero_res) = client.get(&prospero_url).send() {
+                if let Ok(prospero_json) = prospero_res.json::<serde_json::Value>() {
+                    if let Some(name) = prospero_json.get("name").or_else(|| prospero_json.get("title")).and_then(|n| n.as_str()) {
+                        if !name.trim().is_empty() {
+                            final_name = name.to_string();
                         }
                     }
                 }

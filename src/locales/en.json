@@ -21,52 +21,92 @@
   "change_cover": "Change Cover",
   "rename_prompt": "Enter new title for this game:",
   "changelog_title": "Changelog",
-  "changelog_v110_title": "v1.1.0 - (Current)",
-  "changelog_v110_items": [
-    "Custom cover and title support (manual overrides).",
-    "Larger default window size for optimal layout.",
-    "Added SSD warning during scanning.",
-    "Localized changelog and dialogs."
-  ],
-  "changelog_v100_title": "v1.0.0 - (Release)",
-  "changelog_v100_items": [
-    "Official rename to Machete PS5 Backup Manager.",
-    "Cross-region AI cover fetching fallback.",
-    "Relocated PPSA badge to bottom-right.",
-    "Strict anonymization of SerialStation requests."
-  ],
-  "changelog_v020_title": "v0.2.0 - (Beta)",
-  "changelog_v020_items": [
-    "Incorporation of native deletion prevention system (Native Dialog).",
-    "UI restructuring with Cyberpunk styling and dark mode.",
-    "Native support for 11 languages with dynamic switching."
-  ],
-  "changelog_v010_title": "v0.1.0 - (Initial)",
-  "changelog_v010_items": [
-    "Proof of concept. Asynchronous file reading.",
-    "Basic initial connection with SerialStation API.",
-    "Disk space calculation."
+  "changelogs": [
+    {
+      "version": "v2.3.0 - Multiplatform Major Release, ATRAC9 Superframe Engine & Precision Diagnostics",
+      "items": [
+        "Native Rust Sony ATRAC9 superframe decoder and hardware-accelerated Web Audio stream player for game soundtracks (snd0.at9).",
+        "Accurate decimal formatting for SDK versions (SDK 9.00, SDK 8.50, SDK 7.61) and application versions (v1.00, v1.02) without hexadecimal artifacts.",
+        "Full Windows hardening: sanitized explorer.exe path arguments, automatic read-only attribute stripping, and accurate drive metrics.",
+        "Full Linux hardening: POSIX statvfs integration for Steam Deck and UDisks2, D-Bus ShowItems file manager integration, and case-insensitive matching.",
+        "macOS innovations: real-time transfer progress dock tile badge (NSDockTile) and APFS Copy-on-Write zero-time duplication.",
+        "Multi-language NSIS installer supporting 10 languages in user-mode with optimized CI/CD compilation caching."
+      ]
+    },
+    {
+      "version": "v2.1.2 - Audio Engine & Synthesis Optimization Patch",
+      "items": [
+        "Resolved zero-value exponential curve exception in WebKit AudioContext.",
+        "Transitioned to safe universal linear volume ramps for crystal-clear PS5 UI acoustics.",
+        "Immediate synchronous audio context reactivation on game card hover and selection."
+      ]
+    },
+    {
+      "version": "v2.1.1 - UI Refinement, Audio & macOS Menu",
+      "items": [
+        "Fixed cover art header overlap for full-bleed 4K master cover rendering.",
+        "Calibrated WebKit/macOS AudioContext unlock with PlayStation 5 acoustic chimes on hover and selection.",
+        "Added interactive language selector in Settings with English set as default.",
+        "Streamlined top bar layout and integrated native macOS application menu items."
+      ]
+    },
+    {
+      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
+      "items": [
+        "Proprietary Ultra-Low Latency Global CDN: Cloudflare R2 Edge server hosting 11,940+ vertical 4K master covers with white PS5 calqued headers, delivering artwork worldwide in <15ms.",
+        "Zero Telemetry & Absolute Anonymity Guarantee: No tracking, no IP logging, no analytics, generic browser User-Agent headers, and 100% sovereign local database.",
+        "Full Native ShadowMountPlus Ecosystem Support: Detection and deep inspection for .ffpkg (UFS), .exfat (exFAT 64KB), .ffpfs (PFS), .ffpfsc (MicroMount/MkPFS compressed containers), and folder dumps.",
+        "3D Anti-Gravity Physics Engine: Inertial spring levitation, real-time 3D tilt with 1200px perspective, and cursor-reactive volumetric elevation shadows.",
+        "Native PS5 Acoustic Architecture: Authentic harmonic sine chord for PlayStation 5 game focus and native Rust snd0.at9 decoder.",
+        "Storage Treemap Analyzer & Batch Operations: Interactive disk heat map, large backup ranking, and floating batch actions bar with keyboard shortcuts.",
+        "System Settings Panel: Full control to toggle 3D visual physics and acoustic sound effects with persistent local storage.",
+        "Rust 2021 Engine Built with opt-level=3 and LazyLock: Zero regex re-compilation overhead and maximum NVMe I/O streaming speeds."
+      ]
+    },
+    {
+      "version": "v2.0.2 - Cryptographic Auto-Updater",
+      "items": [
+        "Integrated Tauri v2 auto-updater with Minisign cryptographic signature verification.",
+        "Smooth downloading and installation of updates directly from GitHub Releases with live progress tracking.",
+        "Real-time update notifications without requiring app restart."
+      ]
+    },
+    {
+      "version": "v2.0.0-alpha.1",
+      "items": [
+        "New Cyberpunk interface (3D Cards, Hacker Console, Holographic Disk).",
+        "Asynchronous I/O engine powered by Tokio.",
+        "Blake3 anti bit-rot integrity hashing.",
+        "Dynamic total directory space computation."
+      ]
+    },
+    {
+      "version": "v1.2.3",
+      "items": [
+        "Fixed 0 GB size calculation bug on directory backups.",
+        "Added total GB summary calculation in top navigation bar."
+      ]
+    },
+    {
+      "version": "v1.1.0",
+      "items": [
+        "Custom cover and title support with local database persistence.",
+        "Optimized default window dimensions for clean layout presentation.",
+        "Large SSD drive scan warning."
+      ]
+    },
+    {
+      "version": "v1.0.0 - Official Release",
+      "items": [
+        "Official launch of Machete PS5 Backup Manager.",
+        "Automatic high-resolution vertical cover art streaming.",
+        "Relocated PPSA badge to bottom overlay.",
+        "Strict request anonymization."
+      ]
+    }
   ],
   "license_info": "Distributed under the GPLv3 License",
   "repository_label": "Official Repository",
-  "changelog_v120_title": "v1.2.0",
-  "changelog_v120_items": [
-    "Added file/folder transfer support via Drag & Drop and Click.",
-    "Added transfer progress UI (Speed and ETA calculation).",
-    "Fixed grid padding for perfect cover cropping."
-  ],
-  "changelog_v200_title": "v2.0.0-alpha.1",
-  "changelog_v200_items": [
-    "Nueva interfaz Cyberpunk (Tarjetas 3D, Consola Hacker, Disco Holográfico).",
-    "Motor I/O asíncrono impulsado por Tokio.",
-    "Cálculo de hashes Blake3 Anti Bit-Rot.",
-    "Cálculo dinámico del tamaño total del directorio."
-  ],
-  "changelog_v123_title": "v1.2.3",
-  "changelog_v123_items": [
-    "Corregido error de '0 GB' en el peso de carpetas.",
-    "Añadido cálculo total de GB en la barra superior."
-  ],
   "update_title": "Software Update",
   "update_check_btn": "Check for Updates",
   "update_checking": "Checking...",
