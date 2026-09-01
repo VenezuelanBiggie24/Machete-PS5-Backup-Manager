@@ -650,12 +650,17 @@ fn format_json_val_app(val: &serde_json::Value) -> Option<String> {
 }
 
 fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
-    if at9_bytes.len() < 52 || &at9_bytes[0..4] != b"RIFF" || &at9_bytes[8..12] != b"WAVE" {
+    if at9_bytes.len() < 52 || &at9_bytes[0..4] != b"RIFF" {
+        return None;
+    }
+    let format_id = &at9_bytes[8..12];
+    if format_id != b"WAVE" && format_id != b"AT9 " {
         return None;
     }
 
     let mut pos = 12;
     let mut fmt_data = None;
+    let mut fact_data = None;
     let mut audio_data = None;
 
     while pos + 8 <= at9_bytes.len() {
@@ -665,6 +670,8 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
         if chunk_id == b"fmt " {
             fmt_data = Some(&at9_bytes[pos + 8..chunk_end]);
+        } else if chunk_id == b"fact" {
+            fact_data = Some(&at9_bytes[pos + 8..chunk_end]);
         } else if chunk_id == b"data" {
             audio_data = Some(&at9_bytes[pos + 8..chunk_end]);
         }
@@ -680,7 +687,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
     let mut decoder_opt = None;
     if fmt.len() >= 4 {
-        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48];
+        let preferred_offsets = [40, fmt.len().saturating_sub(4), 44, 36, 48, 32, 28, 24];
         for &off in &preferred_offsets {
             if off + 4 <= fmt.len() {
                 if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
@@ -688,6 +695,22 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
                         if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
                             decoder_opt = Some(dec);
                             break;
+                        }
+                    }
+                }
+            }
+        }
+        if decoder_opt.is_none() {
+            if let Some(fact) = fact_data {
+                for off in [0, 4, 8, 12] {
+                    if off + 4 <= fact.len() {
+                        if let Ok(config_bytes) = fact[off..off + 4].try_into() {
+                            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
+                                if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                                    decoder_opt = Some(dec);
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -774,8 +797,8 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
             let path = entry.path();
             let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
             if path.is_file() {
-                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") || name_lower.contains("audio") {
-                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") || name_lower.contains("audio") || ext == "at9" {
                     match ext.as_str() {
                         "at9" => return Some((path, "at9".to_string())),
                         "wav" => return Some((path, "wav".to_string())),
@@ -834,21 +857,25 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
                 }
             }
         } else {
-            if let Ok(mut file) = fs::File::open(p) {
-                let mut buffer = vec![0u8; 32 * 1024 * 1024]; // Read 32MB probe for audio discovery
-                if let Ok(n) = file.read(&mut buffer) {
-                    let slice = &buffer[..n];
+            if let Ok(file) = fs::File::open(p) {
+                let mut buffer = Vec::new();
+                let mut reader = file.take(64 * 1024 * 1024); // Complete 64MB read in a loop
+                if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
+                    let slice = &buffer[..];
                     for i in 0..slice.len().saturating_sub(64) {
-                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() && &slice[i+8..i+12] == b"WAVE" {
-                            let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
-                            let at9_slice = if i + riff_size <= slice.len() {
-                                &slice[i..i + riff_size]
-                            } else {
-                                &slice[i..]
-                            };
-                            if let Some(wav_bytes) = decode_at9_to_wav(at9_slice) {
-                                let b64 = general_purpose::STANDARD.encode(&wav_bytes);
-                                return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
+                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
+                            let format_id = &slice[i+8..i+12];
+                            if format_id == b"WAVE" || format_id == b"AT9 " {
+                                let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
+                                let at9_slice = if i + riff_size <= slice.len() {
+                                    &slice[i..i + riff_size]
+                                } else {
+                                    &slice[i..]
+                                };
+                                if let Some(wav_bytes) = decode_at9_to_wav(at9_slice) {
+                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
+                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
+                                }
                             }
                         }
                     }
@@ -981,10 +1008,11 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
         );
 
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
-            if let Ok(mut file) = fs::File::open(path_buf) {
-                let mut buffer = vec![0u8; 32 * 1024 * 1024]; // Read 32MB header probe for deep parameter discovery
-                if let Ok(bytes_read) = file.read(&mut buffer) {
-                    let slice = &buffer[..bytes_read];
+            if let Ok(file) = fs::File::open(path_buf) {
+                let mut buffer = Vec::new();
+                let mut reader = file.take(64 * 1024 * 1024); // Complete 64MB deep read in a loop
+                if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
+                    let slice = &buffer[..];
 
                     // 1. Try binary SFO parser first
                     if let Some(sfo) = parse_binary_sfo(slice) {
@@ -1166,6 +1194,9 @@ async fn read_directory(path: String) -> Result<Vec<FileItem>, String> {
             }
         }
         
+        // Sort alphabetically by filename
+        files.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        
         Ok(files)
     }).await.map_err(|e| e.to_string())?
 }
@@ -1189,22 +1220,17 @@ fn make_writable_recursively_win(path: &Path) {
 }
 
 #[cfg(unix)]
-fn force_make_writable_recursive_unix(p: &Path) {
+fn force_make_writable_recursive_unix(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
-    if let Ok(meta) = fs::symlink_metadata(p) {
-        if !meta.file_type().is_symlink() {
-            let mut perms = meta.permissions();
-            let mode = perms.mode();
-            if mode & 0o200 == 0 {
-                perms.set_mode(mode | 0o700);
-                let _ = fs::set_permissions(p, perms);
-            }
-            if p.is_dir() {
-                if let Ok(entries) = fs::read_dir(p) {
-                    for entry in entries.flatten() {
-                        force_make_writable_recursive_unix(&entry.path());
-                    }
-                }
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut perms = metadata.permissions();
+        perms.set_mode(perms.mode() | 0o700);
+        let _ = fs::set_permissions(path, perms);
+    }
+    if path.is_dir() {
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                force_make_writable_recursive_unix(&entry.path());
             }
         }
     }
@@ -1271,21 +1297,24 @@ async fn open_in_file_manager(path: String) -> Result<(), String> {
 async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let p = Path::new(&path);
-        let target = if p.exists() { p } else { Path::new("/") };
+        let target = if p.is_file() {
+            p.parent().unwrap_or(p)
+        } else {
+            p
+        };
 
+        // 1. Direct POSIX statvfs syscall on macOS & Linux for guaranteed accurate filesystem metrics
         #[cfg(unix)]
         {
             use std::ffi::CString;
             use std::os::unix::ffi::OsStrExt;
-            use std::mem::MaybeUninit;
-
-            if let Ok(c_path) = CString::new(target.as_os_str().as_bytes()) {
-                let mut stat: MaybeUninit<libc::statvfs> = MaybeUninit::uninit();
-                if unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) } == 0 {
-                    let stat = unsafe { stat.assume_init() };
+            let target_os = target.as_os_str().as_bytes();
+            if let Ok(c_path) = CString::new(target_os) {
+                let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+                if unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) } == 0 {
                     let block_size = if stat.f_frsize > 0 { stat.f_frsize as u64 } else { stat.f_bsize as u64 };
-                    let total = stat.f_blocks as u64 * block_size;
-                    let free = stat.f_bavail as u64 * block_size;
+                    let total = (stat.f_blocks as u64) * block_size;
+                    let free = (stat.f_bavail as u64) * block_size;
                     if total > 0 {
                         return Ok(DiskInfo { total, free });
                     }
@@ -1293,21 +1322,32 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
             }
         }
 
-        // Sysinfo fallback (Windows & Unix fallback)
+        // 2. Sysinfo fallback for Windows and other systems
         let disks = Disks::new_with_refreshed_list();
-        let clean_path = path.trim_start_matches(r"\\?\").replace('/', r"\");
-        let normalized_input = clean_path.to_uppercase();
 
         let mut best_match: Option<&sysinfo::Disk> = None;
-        let mut longest_len = 0;
+        let mut best_len = 0;
 
-        for disk in disks.iter() {
-            let mount_str = disk.mount_point().to_string_lossy();
-            let clean_mount = mount_str.trim_start_matches(r"\\?\").replace('/', r"\").to_uppercase();
-            
-            if normalized_input.starts_with(&clean_mount) && clean_mount.len() > longest_len {
-                longest_len = clean_mount.len();
+        let target_str = target.to_string_lossy().to_lowercase();
+
+        for disk in disks.list() {
+            let mount_str = disk.mount_point().to_string_lossy().to_lowercase();
+            if target_str.starts_with(&mount_str) && mount_str.len() > best_len {
                 best_match = Some(disk);
+                best_len = mount_str.len();
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        if best_match.is_none() {
+            if let Some(target_prefix) = target_str.chars().next() {
+                for disk in disks.list() {
+                    let mount = disk.mount_point().to_string_lossy().to_lowercase();
+                    if mount.starts_with(target_prefix) {
+                        best_match = Some(disk);
+                        break;
+                    }
+                }
             }
         }
 
@@ -1316,19 +1356,13 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
                 total: disk.total_space(),
                 free: disk.available_space(),
             })
+        } else if let Some(first) = disks.list().first() {
+            Ok(DiskInfo {
+                total: first.total_space(),
+                free: first.available_space(),
+            })
         } else {
-            // Fallback by drive letter on Windows
-            let drive_char = normalized_input.chars().next().unwrap_or('C');
-            for disk in disks.iter() {
-                let mount = disk.mount_point().to_string_lossy().to_uppercase();
-                if mount.starts_with(drive_char) {
-                    return Ok(DiskInfo {
-                        total: disk.total_space(),
-                        free: disk.available_space(),
-                    });
-                }
-            }
-            Err("Could not determine disk space for path".into())
+            Ok(DiskInfo { total: 0, free: 0 })
         }
     }).await.map_err(|e| e.to_string())?
 }
@@ -1336,16 +1370,18 @@ async fn get_disk_space(path: String) -> Result<DiskInfo, String> {
 #[tauri::command]
 async fn delete_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let clean_path = path.trim().trim_start_matches(r"\\?\").replace('/', r"\");
-        let path_buf = Path::new(&clean_path);
-        
-        let is_win_drive_root = clean_path.len() <= 3 && clean_path.chars().nth(1) == Some(':');
-        if clean_path.is_empty() || is_win_drive_root || path_buf.parent().is_none() || clean_path == "/" || clean_path == "\\" {
-            return Err("Invalid or protected root path provided for deletion".into());
-        }
+        let path_buf = Path::new(&path);
         if !path_buf.exists() {
-            return Err("Path does not exist".into());
+            return Ok(());
         }
+
+        let clean_path = path_buf.to_string_lossy().replace('\\', "/");
+        if clean_path == "/" || clean_path == "c:/" || clean_path == "d:/" || clean_path == "e:/" {
+            return Err("Protection: Refusing to delete root drive directory".to_string());
+        }
+
+        #[cfg(unix)]
+        force_make_writable_recursive_unix(path_buf);
 
         #[cfg(target_os = "windows")]
         make_writable_recursively_win(path_buf);
@@ -1358,19 +1394,6 @@ async fn delete_file(path: String) -> Result<(), String> {
 
         match remove_res {
             Ok(_) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                #[cfg(unix)]
-                {
-                    force_make_writable_recursive_unix(path_buf);
-                    if path_buf.is_dir() {
-                        fs::remove_dir_all(path_buf).map_err(|err| err.to_string())
-                    } else {
-                        fs::remove_file(path_buf).map_err(|err| err.to_string())
-                    }
-                }
-                #[cfg(not(unix))]
-                Err(e.to_string())
-            }
             Err(e) => Err(e.to_string()),
         }
     }).await.map_err(|e| e.to_string())?
@@ -1404,47 +1427,6 @@ fn try_macos_clone(src: &Path, dst: &Path) -> bool {
         unsafe { clonefile(c_src.as_ptr(), c_dst.as_ptr(), 0) == 0 }
     } else {
         false
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn update_macos_dock_badge(percent: f64) {
-    use std::ffi::CString;
-    extern "C" {
-        fn objc_getClass(name: *const std::os::raw::c_char) -> *mut std::os::raw::c_void;
-        fn sel_registerName(name: *const std::os::raw::c_char) -> *mut std::os::raw::c_void;
-        fn objc_msgSend(receiver: *mut std::os::raw::c_void, op: *mut std::os::raw::c_void, ...) -> *mut std::os::raw::c_void;
-    }
-
-    unsafe {
-        let nsapp_cls_name = CString::new("NSApplication").unwrap();
-        let nsapp_cls = objc_getClass(nsapp_cls_name.as_ptr());
-        if nsapp_cls.is_null() { return; }
-        let shared_app_sel = sel_registerName(CString::new("sharedApplication").unwrap().as_ptr());
-        let app = objc_msgSend(nsapp_cls, shared_app_sel);
-        if app.is_null() { return; }
-
-        let dock_tile_sel = sel_registerName(CString::new("dockTile").unwrap().as_ptr());
-        let dock_tile = objc_msgSend(app, dock_tile_sel);
-        if dock_tile.is_null() { return; }
-
-        let set_badge_sel = sel_registerName(CString::new("setBadgeLabel:").unwrap().as_ptr());
-        let nsstring_cls = objc_getClass(CString::new("NSString").unwrap().as_ptr());
-        let str_with_utf8_sel = sel_registerName(CString::new("stringWithUTF8String:").unwrap().as_ptr());
-
-        if percent >= 100.0 || percent <= 0.0 {
-            let null_ptr: *mut std::os::raw::c_void = std::ptr::null_mut();
-            objc_msgSend(dock_tile, set_badge_sel, null_ptr);
-        } else {
-            let badge_text = format!("{:.0}%", percent);
-            if let Ok(c_str) = CString::new(badge_text) {
-                let ns_str = objc_msgSend(nsstring_cls, str_with_utf8_sel, c_str.as_ptr());
-                objc_msgSend(dock_tile, set_badge_sel, ns_str);
-            }
-        }
-
-        let display_sel = sel_registerName(CString::new("display").unwrap().as_ptr());
-        objc_msgSend(dock_tile, display_sel);
     }
 }
 
@@ -1521,9 +1503,6 @@ async fn transfer_items(
                     0.0
                 };
                 
-                #[cfg(target_os = "macos")]
-                update_macos_dock_badge(percent);
-
                 let _ = app_handle.emit("transfer-progress", TransferProgress {
                     percent,
                     current_file: process_info.file_name.clone(),
@@ -1538,13 +1517,16 @@ async fn transfer_items(
 
         let copy_res = fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler);
 
-        #[cfg(target_os = "macos")]
-        update_macos_dock_badge(100.0);
+        // Final completion event
+        let _ = app_handle.emit("transfer-progress", TransferProgress {
+            percent: 100.0,
+            current_file: "Transfer complete".to_string(),
+            speed_bytes_per_sec: 0.0,
+            eta_seconds: 0.0,
+        });
 
         copy_res.map(|_| ()).map_err(|e| e.to_string())
-    }).await.map_err(|e| e.to_string())??;
-    
-    Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
