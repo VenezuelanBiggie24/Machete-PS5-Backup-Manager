@@ -231,7 +231,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                   <div>
                     <div className="text-[10px] font-mono text-slate-400 uppercase">{t("spec_app_ver")}</div>
                     <div className="text-xs font-mono font-bold text-white">
-                      {game.app_ver || '01.000.000'}
+                      {game.app_ver || '1.00'}
                     </div>
                   </div>
                 </div>

@@ -473,95 +473,136 @@ export const playSuccessSound = () => {
 /**
  * PS5 Game Background Music / Soundtrack Player (snd0.at9)
  */
+let bgmSourceNode: AudioBufferSourceNode | null = null;
+let bgmGainNode: GainNode | null = null;
 let currentBgmAudio: HTMLAudioElement | null = null;
 let currentBgmPath: string | null = null;
-let bgmFadeInterval: any = null;
+let currentBlobUrl: string | null = null;
 
-export const isBgmPlaying = () => currentBgmAudio !== null && !currentBgmAudio.paused;
+export const isBgmPlaying = () => {
+  if (bgmSourceNode) return true;
+  return currentBgmAudio !== null && !currentBgmAudio.paused;
+};
 
-export const playBgmTheme = (audioDataUri: string, gamePath?: string) => {
+export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
   try {
     if (isMuted) return;
-    if (currentBgmAudio) {
-      if (currentBgmPath === gamePath && !currentBgmAudio.paused) {
-        return; // Already playing this game's theme
-      }
-      stopBgmTheme(false);
+    if (currentBgmPath === gamePath && isBgmPlaying()) {
+      return;
     }
-
-    const audio = new Audio(audioDataUri);
-    audio.loop = true;
-    audio.volume = 0.01;
-    currentBgmAudio = audio;
+    stopBgmTheme(false);
     currentBgmPath = gamePath || null;
 
-    audio.play().then(() => {
-      // Smooth fade-in
-      if (bgmFadeInterval) clearInterval(bgmFadeInterval);
-      let vol = 0.01;
-      const targetVol = 0.65;
-      bgmFadeInterval = setInterval(() => {
-        if (!currentBgmAudio || currentBgmAudio.paused) {
-          clearInterval(bgmFadeInterval);
-          return;
-        }
-        vol = Math.min(targetVol, vol + 0.08);
-        currentBgmAudio.volume = vol;
-        if (vol >= targetVol) {
-          clearInterval(bgmFadeInterval);
-        }
-      }, 50);
-    }).catch((e) => {
-      console.warn("BGM playback interrupted or not permitted:", e);
-    });
+    // Convert data URI to ArrayBuffer
+    const parts = audioDataUri.split(',');
+    if (parts.length < 2) return;
+    const base64Data = parts[1];
+    if (!base64Data) return;
+
+    const binaryString = atob(base64Data);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+
+    // Try Web Audio API decodeAudioData for low-latency, hardware-accelerated playback
+    try {
+      const buffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+
+      source.buffer = buffer;
+      source.loop = true;
+
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.65, now + 0.4);
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      source.start(now);
+      bgmSourceNode = source;
+      bgmGainNode = gain;
+      return;
+    } catch (decodeErr) {
+      console.warn("Web Audio decodeAudioData failed, falling back to Blob audio element:", decodeErr);
+    }
+
+    // Fallback: Blob URL on HTMLAudioElement
+    const blob = new Blob([bytes], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    currentBlobUrl = url;
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.volume = 0.65;
+    currentBgmAudio = audio;
+    await audio.play().catch((e) => console.warn("Blob audio playback warning:", e));
   } catch (e) {
     console.error("playBgmTheme error:", e);
   }
 };
 
 export const stopBgmTheme = (smooth = true) => {
-  if (bgmFadeInterval) {
-    clearInterval(bgmFadeInterval);
-    bgmFadeInterval = null;
-  }
-  if (!currentBgmAudio) {
-    currentBgmPath = null;
-    return;
-  }
-
-  const audio = currentBgmAudio;
-  currentBgmAudio = null;
   currentBgmPath = null;
 
-  if (!smooth) {
+  // 1. Stop Web Audio source
+  if (bgmSourceNode && bgmGainNode) {
+    const source = bgmSourceNode;
+    const gain = bgmGainNode;
+    bgmSourceNode = null;
+    bgmGainNode = null;
+
+    if (!smooth) {
+      try {
+        source.stop();
+        source.disconnect();
+        gain.disconnect();
+      } catch (_) {}
+    } else {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0.001, now + 0.3);
+        setTimeout(() => {
+          try {
+            source.stop();
+            source.disconnect();
+            gain.disconnect();
+          } catch (_) {}
+        }, 350);
+      } catch (_) {
+        try {
+          source.stop();
+          source.disconnect();
+          gain.disconnect();
+        } catch (_) {}
+      }
+    }
+  }
+
+  // 2. Stop HTMLAudioElement fallback
+  if (currentBgmAudio) {
+    const audio = currentBgmAudio;
+    currentBgmAudio = null;
     try {
       audio.pause();
       audio.currentTime = 0;
       audio.src = '';
     } catch (_) {}
-    return;
   }
 
-  try {
-    let vol = audio.volume;
-    const fade = setInterval(() => {
-      vol = Math.max(0, vol - 0.15);
-      try {
-        audio.volume = vol;
-      } catch (_) {}
-      if (vol <= 0.01) {
-        clearInterval(fade);
-        try {
-          audio.pause();
-          audio.currentTime = 0;
-          audio.src = '';
-        } catch (_) {}
-      }
-    }, 40);
-  } catch (_) {
-    try {
-      audio.pause();
-    } catch (_) {}
+  // Revoke Blob URL
+  if (currentBlobUrl) {
+    URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = null;
   }
 };
 

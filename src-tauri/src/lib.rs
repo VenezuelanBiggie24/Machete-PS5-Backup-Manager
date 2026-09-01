@@ -59,11 +59,11 @@ static RE_RAW_TITLE_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
 });
 
 static RE_TITLE_NAME: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"titleName"\s*:\s*"([^"]+)""#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:titleName|title_name|defaultLanguageTitle)"\s*:\s*"([^"]+)""#).expect("valid regex")
 });
 
 static RE_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
-    regex::bytes::Regex::new(r#"(?i)"(?:appVer|app_ver|version)"\s*:\s*"([^"]+)""#).expect("valid regex")
+    regex::bytes::Regex::new(r#"(?i)"(?:appVer|app_ver|version|masterVersion|titleVersion)"\s*:\s*"?([^",\s}]+)"?"#).expect("valid regex")
 });
 
 static RE_SDK_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
@@ -80,6 +80,19 @@ static RE_CONTENT_ID: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
 
 static RE_CATEGORY: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
     regex::bytes::Regex::new(r#"(?i)"category"\s*:\s*"([^"]+)""#).expect("valid regex")
+});
+
+// Binary SFO table regexes for raw container formats (.pkg, .ffpkg, .exfat, .ffpfs, .ffpfsc, .iso, .raw)
+static RE_SFO_APP_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)APP_VER[\x00=\s]+([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#).expect("valid regex")
+});
+
+static RE_SFO_SDK_VER: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)(?:SDK_VER|sdk_ver)[\x00=\s]+(?:0x)?([0-9a-fA-F\.]+)"#).expect("valid regex")
+});
+
+static RE_SFO_TITLE: LazyLock<regex::bytes::Regex> = LazyLock::new(|| {
+    regex::bytes::Regex::new(r#"(?i)TITLE[\x00=\s]+([A-Za-z0-9\s:_\-'\.]{3,64})"#).expect("valid regex")
 });
 
 fn get_custom_meta_file(app: &tauri::AppHandle) -> std::path::PathBuf {
@@ -431,14 +444,15 @@ struct Ps5InspectResult {
     has_local_icon: bool,
 }
 
-fn clean_fw_version_str(s: &str) -> Option<String> {
-    let clean = s.trim().trim_matches('"').trim_matches('\'');
-    if clean.is_empty() || clean == "0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("N/A") {
+fn format_ps5_sdk_version(raw: &str) -> Option<String> {
+    let clean = raw.trim().trim_matches('"').trim_matches('\'');
+    if clean.is_empty() || clean == "0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("n/a") {
         return None;
     }
-    
-    // Case 1: Dotted string like "09.00.00.00" or "08.50.00.00" or "9.00"
+
     let without_0x = clean.strip_prefix("0x").or_else(|| clean.strip_prefix("0X")).unwrap_or(clean);
+
+    // 1. Dotted format: e.g. "09.00.00.00", "08.50.00.00", "7.61"
     if without_0x.contains('.') {
         let parts: Vec<&str> = without_0x.split('.').collect();
         if parts.len() >= 2 {
@@ -450,40 +464,118 @@ fn clean_fw_version_str(s: &str) -> Option<String> {
         return Some(without_0x.to_string());
     }
 
-    // Case 2: Hex string like "0x09000000" or "09008000" or "07610000" (8+ hex chars)
-    if without_0x.len() >= 4 {
-        if let Ok(num) = u64::from_str_radix(without_0x, 16) {
-            let major = if without_0x.len() >= 8 { (num >> 24) & 0xFF } else { (num >> 8) & 0xFF };
-            let minor = if without_0x.len() >= 8 { (num >> 16) & 0xFF } else { num & 0xFF };
-            if major > 0 || minor > 0 {
-                return Some(format!("{}.{:02}", major, minor));
+    // 2. Hex string: e.g. "09000000", "08500000", "07610000", "04030000", "0009000000000000"
+    if without_0x.chars().all(|c| c.is_ascii_hexdigit()) {
+        let digits = without_0x.trim_start_matches('0');
+        if digits.is_empty() {
+            return None;
+        }
+
+        // If 8+ hex chars (or 64-bit with 16 hex chars)
+        let pad8 = if without_0x.len() >= 16 {
+            &without_0x[0..8]
+        } else {
+            without_0x
+        };
+        let pad_str = format!("{:0>8}", pad8);
+        if pad_str.len() >= 4 {
+            let major_hex = &pad_str[0..2];
+            let minor_hex = &pad_str[2..4];
+            if let (Ok(maj), Ok(min)) = (u32::from_str_radix(major_hex, 16), u32::from_str_radix(minor_hex, 16)) {
+                if maj > 0 || min > 0 {
+                    return Some(format!("{}.{:02}", maj, min));
+                }
             }
         }
     }
 
-    // Case 3: Decimal integer string like "150994944"
+    // 3. Decimal integer: e.g. 150994944 (0x09000000)
     if let Ok(num) = clean.parse::<u64>() {
-        let major = (num >> 24) & 0xFF;
-        let minor = (num >> 16) & 0xFF;
-        if major > 0 {
-            return Some(format!("{}.{:02}", major, minor));
+        let maj32 = (num >> 24) & 0xFF;
+        let min32 = (num >> 16) & 0xFF;
+        if maj32 > 0 {
+            return Some(format!("{}.{:02}", maj32, min32));
+        }
+        let maj64 = (num >> 56) & 0xFF;
+        let min64 = (num >> 48) & 0xFF;
+        if maj64 > 0 {
+            return Some(format!("{}.{:02}", maj64, min64));
+        }
+    }
+
+    None
+}
+
+fn format_ps5_app_version(raw: &str) -> Option<String> {
+    let clean = raw.trim().trim_matches('"').trim_matches('\'');
+    if clean.is_empty() || clean == "0" || clean.eq_ignore_ascii_case("null") || clean.eq_ignore_ascii_case("n/a") {
+        return None;
+    }
+
+    let without_0x = clean.strip_prefix("0x").or_else(|| clean.strip_prefix("0X")).unwrap_or(clean);
+
+    // 1. Dotted format: "01.000.000" or "01.020.000" or "01.00" or "1.00"
+    if without_0x.contains('.') {
+        let parts: Vec<&str> = without_0x.split('.').collect();
+        if parts.len() >= 2 {
+            let major = parts[0].trim_start_matches('0');
+            let major_str = if major.is_empty() { "1" } else { major };
+            let minor = parts[1];
+            let minor_str = if minor == "000" || minor == "00" {
+                "00"
+            } else if minor.len() == 3 && minor.ends_with("00") {
+                &minor[0..1]
+            } else if minor.len() == 3 && minor.ends_with('0') {
+                &minor[0..2]
+            } else {
+                minor
+            };
+            return Some(format!("{}.{}", major_str, minor_str));
+        }
+        return Some(without_0x.to_string());
+    }
+
+    // 2. Hex format: e.g. "0x01000000" -> "1.00", "0x01020000" -> "1.02"
+    if without_0x.chars().all(|c| c.is_ascii_hexdigit()) {
+        let pad_str = format!("{:0>8}", without_0x);
+        if pad_str.len() >= 4 {
+            let major_hex = &pad_str[0..2];
+            let minor_hex = &pad_str[2..4];
+            if let (Ok(maj), Ok(min)) = (u32::from_str_radix(major_hex, 16), u32::from_str_radix(minor_hex, 16)) {
+                if maj > 0 || min > 0 {
+                    return Some(format!("{}.{:02}", maj, min));
+                }
+            }
+        }
+    }
+
+    // 3. Decimal integer: e.g. 16777216 -> 1.00
+    if let Ok(num) = clean.parse::<u64>() {
+        let maj = (num >> 24) & 0xFF;
+        let min = (num >> 16) & 0xFF;
+        if maj > 0 {
+            return Some(format!("{}.{:02}", maj, min));
         }
     }
 
     Some(clean.to_string())
 }
 
-fn format_fw_version(val: &serde_json::Value) -> Option<String> {
+fn format_json_val_sdk(val: &serde_json::Value) -> Option<String> {
     if let Some(s) = val.as_str() {
-        clean_fw_version_str(s)
+        format_ps5_sdk_version(s)
     } else if let Some(n) = val.as_u64() {
-        let major = (n >> 24) & 0xFF;
-        let minor = (n >> 16) & 0xFF;
-        if major > 0 {
-            Some(format!("{}.{:02}", major, minor))
-        } else {
-            clean_fw_version_str(&n.to_string())
-        }
+        format_ps5_sdk_version(&n.to_string())
+    } else {
+        None
+    }
+}
+
+fn format_json_val_app(val: &serde_json::Value) -> Option<String> {
+    if let Some(s) = val.as_str() {
+        format_ps5_app_version(s)
+    } else if let Some(n) = val.as_u64() {
+        format_ps5_app_version(&n.to_string())
     } else {
         None
     }
@@ -518,15 +610,36 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     let fmt = fmt_data?;
     let data = audio_data?;
 
-    let config_bytes: [u8; 4] = if fmt.len() >= 48 {
-        fmt[44..48].try_into().ok()?
-    } else if fmt.len() >= 44 {
-        fmt[40..44].try_into().ok()?
-    } else {
-        return None;
-    };
+    let mut decoder_opt = None;
+    if fmt.len() >= 4 {
+        let preferred_offsets = [44, 40, 36, 48, fmt.len().saturating_sub(4)];
+        for &off in &preferred_offsets {
+            if off + 4 <= fmt.len() {
+                if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
+                    if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
+                        if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                            decoder_opt = Some(dec);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if decoder_opt.is_none() {
+            for off in 0..fmt.len().saturating_sub(4) {
+                if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
+                    if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
+                        if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                            decoder_opt = Some(dec);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-    let mut decoder = atrac9dec::Atrac9Decoder::new(&config_bytes).ok()?;
+    let mut decoder = decoder_opt?;
     let frame_bytes = decoder.config().frame_bytes as usize;
     let frame_samples = decoder.config().frame_samples as usize;
     let channels = decoder.config().channel_count as usize;
@@ -583,6 +696,43 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     Some(wav)
 }
 
+fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
+    if depth > 3 {
+        return None;
+    }
+    if let Ok(entries) = fs::read_dir(dir) {
+        let mut subdirs = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+            if path.is_file() {
+                if name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.starts_with("sound") {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                    match ext.as_str() {
+                        "at9" => return Some((path, "at9".to_string())),
+                        "wav" => return Some((path, "wav".to_string())),
+                        "mp3" => return Some((path, "mp3".to_string())),
+                        "ogg" => return Some((path, "ogg".to_string())),
+                        "flac" => return Some((path, "flac".to_string())),
+                        _ => {}
+                    }
+                }
+            } else if path.is_dir() {
+                subdirs.push(path);
+            }
+        }
+        for sub in subdirs {
+            let sub_name = sub.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+            if sub_name.contains("sce_sys") || sub_name.contains("sys") || sub_name.contains("sound") || sub_name.contains("audio") || sub_name.contains("game") || sub_name.contains("ps5") || sub_name.contains("content") {
+                if let Some(res) = find_game_audio_file(&sub, depth + 1) {
+                    return Some(res);
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 async fn get_game_audio(path: String) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -592,40 +742,25 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
         }
 
         if p.is_dir() {
-            let candidates = [
-                (p.join("sce_sys").join("snd0.at9"), "at9"),
-                (p.join("snd0.at9"), "at9"),
-                (p.join("sce_sys").join("snd0.wav"), "wav"),
-                (p.join("snd0.wav"), "wav"),
-                (p.join("sce_sys").join("snd0.mp3"), "mp3"),
-                (p.join("snd0.mp3"), "mp3"),
-                (p.join("sce_sys").join("snd0.ogg"), "ogg"),
-                (p.join("snd0.ogg"), "ogg"),
-                (p.join("sce_sys").join("snd0.flac"), "flac"),
-                (p.join("snd0.flac"), "flac"),
-            ];
-
-            for (audio_path, kind) in &candidates {
-                if audio_path.exists() {
-                    if let Ok(mut f) = fs::File::open(audio_path) {
-                        let mut buf = Vec::new();
-                        if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
-                            if *kind == "at9" {
-                                if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
-                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
-                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
-                                }
-                            } else {
-                                let mime = match *kind {
-                                    "wav" => "audio/wav",
-                                    "mp3" => "audio/mpeg",
-                                    "ogg" => "audio/ogg",
-                                    "flac" => "audio/flac",
-                                    _ => "audio/wav",
-                                };
-                                let b64 = general_purpose::STANDARD.encode(&buf);
-                                return Ok(Some(format!("data:{};base64,{}", mime, b64)));
+            if let Some((audio_path, kind)) = find_game_audio_file(p, 0) {
+                if let Ok(mut f) = fs::File::open(&audio_path) {
+                    let mut buf = Vec::new();
+                    if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                        if kind == "at9" {
+                            if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
+                                let b64 = general_purpose::STANDARD.encode(&wav_bytes);
+                                return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
                             }
+                        } else {
+                            let mime = match kind.as_str() {
+                                "wav" => "audio/wav",
+                                "mp3" => "audio/mpeg",
+                                "ogg" => "audio/ogg",
+                                "flac" => "audio/flac",
+                                _ => "audio/wav",
+                            };
+                            let b64 = general_purpose::STANDARD.encode(&buf);
+                            return Ok(Some(format!("data:{};base64,{}", mime, b64)));
                         }
                     }
                 }
@@ -669,52 +804,86 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
     let mut has_local_icon = false;
 
     if path_buf.is_dir() {
-        // 1. Check for sce_sys/param.json or param.json
-        let param_candidates = [
-            path_buf.join("sce_sys").join("param.json"),
-            path_buf.join("param.json"),
-        ];
-
-        for param_path in &param_candidates {
-            if param_path.exists() {
-                if let Ok(content) = fs::read_to_string(param_path) {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(tid) = json.get("titleId").or_else(|| json.get("title_id")).and_then(|v| v.as_str()) {
-                            let clean = tid.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
-                            if clean.starts_with("PPSA") || clean.starts_with("CUSA") {
-                                ppsa = Some(clean);
+        // 1. Check for sce_sys/param.json, param.json or case-insensitive subdirectories
+        if let Ok(entries) = fs::read_dir(path_buf) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                let name_lower = p.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                if p.is_file() && name_lower == "param.json" {
+                    if let Ok(content) = fs::read_to_string(&p) {
+                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                            if let Some(tid) = json.get("titleId").or_else(|| json.get("title_id")).and_then(|v| v.as_str()) {
+                                let clean = tid.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
+                                if clean.starts_with("PPSA") || clean.starts_with("CUSA") {
+                                    ppsa = Some(clean);
+                                }
+                            }
+                            if let Some(tname) = json.get("titleName")
+                                .or_else(|| json.get("title_name"))
+                                .or_else(|| json.get("defaultLanguageTitle"))
+                                .and_then(|v| v.as_str()) {
+                                local_title = Some(tname.to_string());
+                            }
+                            if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
+                                app_ver = format_json_val_app(aver);
+                            }
+                            if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
+                                sdk_ver = format_json_val_sdk(sver);
+                            }
+                            if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")) {
+                                min_firmware = format_json_val_sdk(fw);
+                            }
+                            if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
+                                content_id = Some(cid.to_string());
+                            }
+                            if let Some(cat) = json.get("category").and_then(|v| v.as_str()) {
+                                category = Some(cat.to_string());
                             }
                         }
-                        if let Some(tname) = json.get("titleName")
-                            .or_else(|| json.get("title_name"))
-                            .or_else(|| json.get("defaultLanguageTitle"))
-                            .and_then(|v| v.as_str()) {
-                            local_title = Some(tname.to_string());
-                        }
-                        if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).and_then(|v| v.as_str()) {
-                            app_ver = Some(aver.to_string());
-                        }
-                        if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
-                            sdk_ver = format_fw_version(sver);
-                        }
-                        if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")) {
-                            min_firmware = format_fw_version(fw);
-                        }
-                        if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
-                            content_id = Some(cid.to_string());
-                        }
-                        if let Some(cat) = json.get("category").and_then(|v| v.as_str()) {
-                            category = Some(cat.to_string());
+                    }
+                } else if p.is_dir() && name_lower.contains("sce_sys") {
+                    let sub_param = p.join("param.json");
+                    if sub_param.exists() {
+                        if let Ok(content) = fs::read_to_string(&sub_param) {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Some(tid) = json.get("titleId").or_else(|| json.get("title_id")).and_then(|v| v.as_str()) {
+                                    let clean = tid.to_uppercase().replace("-", "").replace("_", "").replace(" ", "");
+                                    if clean.starts_with("PPSA") || clean.starts_with("CUSA") {
+                                        ppsa = Some(clean);
+                                    }
+                                }
+                                if let Some(tname) = json.get("titleName")
+                                    .or_else(|| json.get("title_name"))
+                                    .or_else(|| json.get("defaultLanguageTitle"))
+                                    .and_then(|v| v.as_str()) {
+                                    local_title = Some(tname.to_string());
+                                }
+                                if let Some(aver) = json.get("appVer").or_else(|| json.get("app_ver")).or_else(|| json.get("version")).or_else(|| json.get("masterVersion")).or_else(|| json.get("titleVersion")) {
+                                    app_ver = format_json_val_app(aver);
+                                }
+                                if let Some(sver) = json.get("sdkVersion").or_else(|| json.get("sdk_ver")).or_else(|| json.get("sdk_version")) {
+                                    sdk_ver = format_json_val_sdk(sver);
+                                }
+                                if let Some(fw) = json.get("requiredSystemSoftwareVersion").or_else(|| json.get("required_system_software_version")).or_else(|| json.get("min_fw")) {
+                                    min_firmware = format_json_val_sdk(fw);
+                                }
+                                if let Some(cid) = json.get("contentId").or_else(|| json.get("content_id")).and_then(|v| v.as_str()) {
+                                    content_id = Some(cid.to_string());
+                                }
+                                if let Some(cat) = json.get("category").and_then(|v| v.as_str()) {
+                                    category = Some(cat.to_string());
+                                }
+                            }
                         }
                     }
                 }
-                break;
             }
         }
 
         // 2. Check for sce_sys/icon0.png or icon0.png
         let icon_candidates = [
             path_buf.join("sce_sys").join("icon0.png"),
+            path_buf.join("SCE_SYS").join("icon0.png"),
             path_buf.join("icon0.png"),
         ];
 
@@ -740,7 +909,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
 
         if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
             if let Ok(mut file) = fs::File::open(path_buf) {
-                let mut buffer = vec![0u8; 4 * 1024 * 1024]; // Read 4MB header efficiently
+                let mut buffer = vec![0u8; 16 * 1024 * 1024]; // Read 16MB header probe for deep parameter discovery
                 if let Ok(bytes_read) = file.read(&mut buffer) {
                     let slice = &buffer[..bytes_read];
                     if let Some(caps) = RE_TITLE_ID.captures(slice) {
@@ -766,24 +935,51 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
                             }
                         }
                     }
+                    if local_title.is_none() {
+                        if let Some(caps) = RE_SFO_TITLE.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    local_title = Some(s.trim().to_string());
+                                }
+                            }
+                        }
+                    }
                     if let Some(caps) = RE_APP_VER.captures(slice) {
                         if let Some(m) = caps.get(1) {
                             if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                app_ver = Some(s.to_string());
+                                app_ver = format_ps5_app_version(s);
+                            }
+                        }
+                    }
+                    if app_ver.is_none() {
+                        if let Some(caps) = RE_SFO_APP_VER.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    app_ver = format_ps5_app_version(s);
+                                }
                             }
                         }
                     }
                     if let Some(caps) = RE_SDK_VER.captures(slice) {
                         if let Some(m) = caps.get(1) {
                             if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                sdk_ver = clean_fw_version_str(s);
+                                sdk_ver = format_ps5_sdk_version(s);
+                            }
+                        }
+                    }
+                    if sdk_ver.is_none() {
+                        if let Some(caps) = RE_SFO_SDK_VER.captures(slice) {
+                            if let Some(m) = caps.get(1) {
+                                if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
+                                    sdk_ver = format_ps5_sdk_version(s);
+                                }
                             }
                         }
                     }
                     if let Some(caps) = RE_REQ_FW.captures(slice) {
                         if let Some(m) = caps.get(1) {
                             if let Ok(s) = std::str::from_utf8(m.as_bytes()) {
-                                min_firmware = clean_fw_version_str(s);
+                                min_firmware = format_ps5_sdk_version(s);
                             }
                         }
                     }
@@ -830,9 +1026,9 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
         min_firmware = sdk_ver.clone();
     }
 
-    // Default App Version format if missing: 01.00
+    // Default App Version format if missing: 1.00
     if app_ver.is_none() {
-        app_ver = Some("01.000.000".to_string());
+        app_ver = Some("1.00".to_string());
     }
 
     Ps5InspectResult {
