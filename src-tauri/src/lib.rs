@@ -1334,6 +1334,47 @@ fn try_macos_clone(src: &Path, dst: &Path) -> bool {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn update_macos_dock_badge(percent: f64) {
+    use std::ffi::CString;
+    extern "C" {
+        fn objc_getClass(name: *const std::os::raw::c_char) -> *mut std::os::raw::c_void;
+        fn sel_registerName(name: *const std::os::raw::c_char) -> *mut std::os::raw::c_void;
+        fn objc_msgSend(receiver: *mut std::os::raw::c_void, op: *mut std::os::raw::c_void, ...) -> *mut std::os::raw::c_void;
+    }
+
+    unsafe {
+        let nsapp_cls_name = CString::new("NSApplication").unwrap();
+        let nsapp_cls = objc_getClass(nsapp_cls_name.as_ptr());
+        if nsapp_cls.is_null() { return; }
+        let shared_app_sel = sel_registerName(CString::new("sharedApplication").unwrap().as_ptr());
+        let app = objc_msgSend(nsapp_cls, shared_app_sel);
+        if app.is_null() { return; }
+
+        let dock_tile_sel = sel_registerName(CString::new("dockTile").unwrap().as_ptr());
+        let dock_tile = objc_msgSend(app, dock_tile_sel);
+        if dock_tile.is_null() { return; }
+
+        let set_badge_sel = sel_registerName(CString::new("setBadgeLabel:").unwrap().as_ptr());
+        let nsstring_cls = objc_getClass(CString::new("NSString").unwrap().as_ptr());
+        let str_with_utf8_sel = sel_registerName(CString::new("stringWithUTF8String:").unwrap().as_ptr());
+
+        if percent >= 100.0 || percent <= 0.0 {
+            let null_ptr: *mut std::os::raw::c_void = std::ptr::null_mut();
+            objc_msgSend(dock_tile, set_badge_sel, null_ptr);
+        } else {
+            let badge_text = format!("{:.0}%", percent);
+            if let Ok(c_str) = CString::new(badge_text) {
+                let ns_str = objc_msgSend(nsstring_cls, str_with_utf8_sel, c_str.as_ptr());
+                objc_msgSend(dock_tile, set_badge_sel, ns_str);
+            }
+        }
+
+        let display_sel = sel_registerName(CString::new("display").unwrap().as_ptr());
+        objc_msgSend(dock_tile, display_sel);
+    }
+}
+
 #[tauri::command]
 async fn transfer_items(
     app_handle: tauri::AppHandle,
@@ -1379,7 +1420,7 @@ async fn transfer_items(
         let mut last_emit = Instant::now();
         let mut last_copied_bytes = 0u64;
         let mut last_time = Instant::now();
-        
+
         let handler = |process_info: fs_extra::TransitProcess| {
             let now = Instant::now();
             // Emit progress every 100ms
@@ -1407,6 +1448,9 @@ async fn transfer_items(
                     0.0
                 };
                 
+                #[cfg(target_os = "macos")]
+                update_macos_dock_badge(percent);
+
                 let _ = app_handle.emit("transfer-progress", TransferProgress {
                     percent,
                     current_file: process_info.file_name.clone(),
@@ -1419,9 +1463,12 @@ async fn transfer_items(
             fs_extra::dir::TransitProcessResult::ContinueOrAbort
         };
 
-        fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler)
-            .map(|_| ())
-            .map_err(|e| e.to_string())
+        let copy_res = fs_extra::copy_items_with_progress(&sources, &target_dir, &options, handler);
+
+        #[cfg(target_os = "macos")]
+        update_macos_dock_badge(100.0);
+
+        copy_res.map(|_| ()).map_err(|e| e.to_string())
     }).await.map_err(|e| e.to_string())??;
     
     Ok(())
