@@ -682,27 +682,27 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
 
-    // Helper to probe ATRAC9 config words in normal and endian-swapped byte order
-    let test_config = |slice: &[u8]| -> Option<atrac9dec::Atrac9Decoder> {
-        if slice.len() < 4 { return None; }
+    let get_configs = |slice: &[u8]| -> Vec<atrac9dec::Atrac9Decoder> {
+        let mut decoders = Vec::new();
+        if slice.len() < 4 { return decoders; }
         for w in slice.windows(4) {
             let buf4: [u8; 4] = [w[0], w[1], w[2], w[3]];
             if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&buf4) {
                 if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
-                    return Some(dec);
+                    decoders.push(dec);
                 }
             }
             let rev4: [u8; 4] = [w[3], w[2], w[1], w[0]];
             if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&rev4) {
                 if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
-                    return Some(dec);
+                    decoders.push(dec);
                 }
             }
         }
-        None
+        decoders
     };
 
-    let mut decoder_opt = None;
+    let mut candidate_decoders = Vec::new();
     let mut data: &[u8] = at9_bytes;
 
     if at9_bytes.len() >= 12 && &at9_bytes[0..4] == b"RIFF" {
@@ -732,20 +732,16 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         }
 
         if let Some(fmt) = fmt_data {
-            // If already uncompressed PCM WAV (format tag 1), return as is
             if fmt.len() >= 2 {
                 let format_tag = u16::from_le_bytes(fmt[0..2].try_into().unwrap_or([0; 2]));
                 if format_tag == 1 {
                     return Some(at9_bytes.to_vec());
                 }
             }
-            decoder_opt = test_config(fmt);
+            candidate_decoders.extend(get_configs(fmt));
         }
-
-        if decoder_opt.is_none() {
-            if let Some(fact) = fact_data {
-                decoder_opt = test_config(fact);
-            }
+        if let Some(fact) = fact_data {
+            candidate_decoders.extend(get_configs(fact));
         }
 
         if let Some(d) = audio_data {
@@ -757,79 +753,88 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         }
     }
 
-    if decoder_opt.is_none() {
-        let scan_limit = at9_bytes.len().min(512);
-        decoder_opt = test_config(&at9_bytes[..scan_limit]);
-    }
+    let scan_limit = at9_bytes.len().min(1024);
+    candidate_decoders.extend(get_configs(&at9_bytes[..scan_limit]));
 
-    let mut decoder = decoder_opt?;
-    let config = decoder.config();
-    let frame_bytes = config.frame_bytes as usize;
-    let superframe_index = config.superframe_index as usize;
-    let frames_in_superframe = 1usize << superframe_index;
-    let superframe_bytes = frame_bytes * frames_in_superframe;
-    let channels = config.channel_count as usize;
-    let frame_samples = config.frame_samples as usize;
-    let superframe_samples = channels * frame_samples * frames_in_superframe;
-    let sample_rate = config.sample_rate as u32;
+    let mut best_pcm: Option<Vec<i16>> = None;
+    let mut best_channels = 0;
+    let mut best_sample_rate = 0;
 
-    if superframe_bytes == 0 || channels == 0 || superframe_samples == 0 || data.is_empty() {
-        return None;
-    }
+    for mut decoder in candidate_decoders {
+        let config = decoder.config();
+        let frame_bytes = config.frame_bytes as usize;
+        let superframe_index = config.superframe_index as usize;
+        let frames_in_superframe = 1usize << superframe_index;
+        let superframe_bytes = frame_bytes * frames_in_superframe;
+        let channels = config.channel_count as usize;
+        let frame_samples = config.frame_samples as usize;
+        let superframe_samples = channels * frame_samples * frames_in_superframe;
+        let sample_rate = config.sample_rate as u32;
 
-    let mut all_pcm: Vec<i16> = Vec::new();
-    let mut superframe_pcm = vec![0i16; superframe_samples];
-    let max_superframes = (sample_rate as usize * 90) / (frame_samples * frames_in_superframe);
-    let mut superframes_decoded = 0;
-
-    // Scan forward byte-by-byte (up to 4096 bytes) to find exact ATRAC9 superframe alignment
-    let mut offset = 0;
-    while offset + superframe_bytes <= data.len() && offset < 4096 {
-        let test_slice = &data[offset..offset + superframe_bytes];
-        if decoder.decode(test_slice, &mut superframe_pcm).is_ok() {
-            all_pcm.extend_from_slice(&superframe_pcm);
-            superframes_decoded += 1;
-            offset += superframe_bytes;
-            break;
+        if superframe_bytes == 0 || channels == 0 || superframe_samples == 0 || data.is_empty() {
+            continue;
         }
-        offset += 1;
-    }
 
-    if superframes_decoded == 0 {
-        return None;
-    }
+        let mut all_pcm: Vec<i16> = Vec::new();
+        let mut superframe_pcm = vec![0i16; superframe_samples];
+        let max_superframes = (sample_rate as usize * 90) / (frame_samples * frames_in_superframe);
+        let mut superframes_decoded = 0;
 
-    // Decode remaining superframes with auto-resync
-    while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
-        let frame_slice = &data[offset..offset + superframe_bytes];
-        if decoder.decode(frame_slice, &mut superframe_pcm).is_ok() {
-            all_pcm.extend_from_slice(&superframe_pcm);
-            superframes_decoded += 1;
-            offset += superframe_bytes;
-        } else {
-            let mut synced = false;
-            for delta in 1..frame_bytes.min(256) {
-                if offset + delta + superframe_bytes <= data.len() {
-                    let re_slice = &data[offset + delta..offset + delta + superframe_bytes];
-                    if decoder.decode(re_slice, &mut superframe_pcm).is_ok() {
-                        all_pcm.extend_from_slice(&superframe_pcm);
-                        superframes_decoded += 1;
-                        offset += delta + superframe_bytes;
-                        synced = true;
-                        break;
+        let mut offset = 0;
+        let mut found_start = false;
+        while offset + superframe_bytes <= data.len() && offset < 8192 {
+            let test_slice = &data[offset..offset + superframe_bytes];
+            if decoder.decode(test_slice, &mut superframe_pcm).is_ok() {
+                all_pcm.extend_from_slice(&superframe_pcm);
+                superframes_decoded += 1;
+                offset += superframe_bytes;
+                found_start = true;
+                break;
+            }
+            offset += 1;
+        }
+
+        if !found_start {
+            continue;
+        }
+
+        while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
+            let frame_slice = &data[offset..offset + superframe_bytes];
+            if decoder.decode(frame_slice, &mut superframe_pcm).is_ok() {
+                all_pcm.extend_from_slice(&superframe_pcm);
+                superframes_decoded += 1;
+                offset += superframe_bytes;
+            } else {
+                let mut synced = false;
+                for delta in 1..frame_bytes.min(256) {
+                    if offset + delta + superframe_bytes <= data.len() {
+                        let re_slice = &data[offset + delta..offset + delta + superframe_bytes];
+                        if decoder.decode(re_slice, &mut superframe_pcm).is_ok() {
+                            all_pcm.extend_from_slice(&superframe_pcm);
+                            superframes_decoded += 1;
+                            offset += delta + superframe_bytes;
+                            synced = true;
+                            break;
+                        }
                     }
                 }
+                if !synced {
+                    offset += superframe_bytes;
+                }
             }
-            if !synced {
-                offset += superframe_bytes;
-            }
+        }
+
+        if !all_pcm.is_empty() {
+            best_pcm = Some(all_pcm);
+            best_channels = channels;
+            best_sample_rate = sample_rate;
+            break;
         }
     }
 
-    if all_pcm.is_empty() {
-        return None;
-    }
-
+    let all_pcm = best_pcm?;
+    let channels = best_channels;
+    let sample_rate = best_sample_rate;
     let pcm_bytes_len = (all_pcm.len() * 2) as u32;
     let mut wav = Vec::with_capacity(44 + pcm_bytes_len as usize);
 
@@ -1146,11 +1151,15 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
         } else {
             if let Ok(file) = fs::File::open(p) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(128 * 1024 * 1024);
+                // Read up to 256MB to find audio metadata in large PKGs or ISOs
+                let mut reader = file.take(256 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
+                    let mut found = false;
+                    
+                    // 1. Scan for standard RIFF WAV/AT9 chunks
                     for i in 0..slice.len().saturating_sub(64) {
-                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
+                        if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
                             let format_id = &slice[i+8..i+12];
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
@@ -1161,6 +1170,26 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                                 };
                                 if let Some(wav) = decode_at9_to_wav(at9_slice) {
                                     return Some(wav);
+                                }
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Scan for RAW headerless ATRAC9 config words (0xFE...) if RIFF fails
+                    if !found {
+                        for i in 0..slice.len().saturating_sub(64) {
+                            if slice[i] == 0xFE {
+                                let buf4 = [slice[i], slice[i+1], slice[i+2], slice[i+3]];
+                                if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&buf4) {
+                                    if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                                        // Valid config word found! Pass up to 15MB to the decoder to verify and extract
+                                        let scan_end = (i + 15 * 1024 * 1024).min(slice.len());
+                                        if let Some(wav) = decode_at9_to_wav(&slice[i..scan_end]) {
+                                            return Some(wav);
+                                        }
+                                    }
                                 }
                             }
                         }
