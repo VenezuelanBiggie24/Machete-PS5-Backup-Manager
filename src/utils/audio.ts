@@ -23,19 +23,31 @@ export const getAudioContext = (): AudioContext => {
   if (!sharedAudioCtx || sharedAudioCtx.state === 'closed' || (sharedAudioCtx.state as string) === 'interrupted') {
     sharedAudioCtx = new AudioContextClass();
   }
-  if (sharedAudioCtx.state === 'suspended') {
-    sharedAudioCtx.resume().catch(() => {});
-  }
   return sharedAudioCtx;
 };
 
 // Reliable WebKit / Chromium Audio Unlocker
 export const unlockAudio = () => {
   try {
-    const ctx = getAudioContext();
+    let ctx = getAudioContext();
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-      ctx.resume().catch(() => {});
+      ctx.resume().then(() => {
+        // macOS WebKit inactivity zombie detection:
+        // If it's still suspended after a successful resume resolution, the context is dead.
+        if (ctx.state === 'suspended') {
+          try { ctx.close(); } catch (_) {}
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          sharedAudioCtx = new AudioContextClass();
+          sharedAudioCtx.resume().catch(() => {});
+        }
+      }).catch(() => {
+        try { ctx.close(); } catch (_) {}
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        sharedAudioCtx = new AudioContextClass();
+        sharedAudioCtx.resume().catch(() => {});
+      });
     }
+
     // Play a single silent PCM sample to prime WebKit's hardware audio pipeline
     const buffer = ctx.createBuffer(1, 1, 22050);
     const source = ctx.createBufferSource();
@@ -84,7 +96,6 @@ export const playHoverSound = () => {
 
     const ctx = getAudioContext();
     if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime + 0.008;
     
@@ -136,9 +147,6 @@ export const playPS5GameSelectSound = () => {
     if (isMuted) return;
     unlockAudio();
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-      ctx.resume().catch(() => {});
-    }
     const now = ctx.currentTime + 0.01;
 
     // 1. Warm Sub-Bass Focus Thump (Controller / Console Haptic resonance)
@@ -249,7 +257,6 @@ export const playSelectSound = () => {
     if (isMuted) return;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime;
 
@@ -291,7 +298,6 @@ export const playCancelSound = () => {
     if (isMuted) return;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
@@ -331,7 +337,6 @@ export const playScanSound = () => {
     if (isMuted) return;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime;
     // PS5 Ambient Chord: C5, E5, G5, B5, D6
@@ -383,7 +388,6 @@ export const playMacheteSound = () => {
     if (isMuted) return;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime;
 
@@ -448,7 +452,6 @@ export const playSuccessSound = () => {
     if (isMuted) return;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
     }
     const now = ctx.currentTime;
     // Ascending crystal notes: E5, G#5, B5, E6

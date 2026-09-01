@@ -1028,7 +1028,10 @@ impl NativeAudioPlayer {
     fn play_pcm_wav(&self, wav_data: &[u8], volume: f32) -> Result<(), String> {
         self.stop();
 
-        let temp_file = std::env::temp_dir().join("machete_preview_audio.wav");
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let temp_file = std::env::temp_dir().join(format!("machete_preview_audio_{}.wav", ts));
+        
         fs::write(&temp_file, wav_data).map_err(|e| e.to_string())?;
 
         let vol_str = format!("{:.2}", volume.clamp(0.0, 1.0));
