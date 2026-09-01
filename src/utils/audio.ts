@@ -484,127 +484,92 @@ export const playSuccessSound = () => {
 /**
  * PS5 Game Background Music / Soundtrack Player (snd0.at9)
  */
-let bgmSourceNode: AudioBufferSourceNode | null = null;
-let bgmGainNode: GainNode | null = null;
+let bgmAudioElement: HTMLAudioElement | null = null;
 let currentBgmPath: string | null = null;
+let currentBlobUrl: string | null = null;
 
 export const isBgmPlaying = () => {
-  return bgmSourceNode !== null;
+  return bgmAudioElement !== null && !bgmAudioElement.paused;
 };
-
-// Convert Base64 WAV/PCM to AudioBuffer reliably in WebKit
-async function decodeAudioDataReliable(ctx: AudioContext, arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
-  try {
-    return await new Promise<AudioBuffer>((resolve, reject) => {
-      const res = ctx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
-      if (res && typeof (res as any).then === 'function') {
-        (res as any).then(resolve).catch(reject);
-      }
-    });
-  } catch (nativeErr) {
-    // Direct manual WAV PCM parser fallback if WebKit CoreAudio rejects header
-    const dataView = new DataView(arrayBuffer);
-    const riff = String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4));
-    if (riff === 'RIFF') {
-      let offset = 12;
-      let channels = 2;
-      let sampleRate = 48000;
-      let bitsPerSample = 16;
-      let dataOffset = 0;
-      let dataSize = 0;
-
-      while (offset < arrayBuffer.byteLength - 8) {
-        const chunkId = String.fromCharCode(...new Uint8Array(arrayBuffer, offset, 4));
-        const chunkSize = dataView.getUint32(offset + 4, true);
-        if (chunkId === 'fmt ') {
-          channels = dataView.getUint16(offset + 10, true);
-          sampleRate = dataView.getUint32(offset + 12, true);
-          bitsPerSample = dataView.getUint16(offset + 22, true);
-        } else if (chunkId === 'data') {
-          dataOffset = offset + 8;
-          dataSize = chunkSize;
-          break;
-        }
-        offset += 8 + chunkSize;
-      }
-
-      if (dataOffset > 0 && bitsPerSample === 16) {
-        const numSamples = Math.floor(dataSize / (2 * channels));
-        const audioBuf = ctx.createBuffer(channels, numSamples, sampleRate);
-        for (let ch = 0; ch < channels; ch++) {
-          const channelData = audioBuf.getChannelData(ch);
-          let sampleIdx = 0;
-          for (let i = dataOffset + ch * 2; i < dataOffset + dataSize && sampleIdx < numSamples; i += channels * 2) {
-            const intSample = dataView.getInt16(i, true);
-            channelData[sampleIdx++] = intSample / 32768.0;
-          }
-        }
-        return audioBuf;
-      }
-    }
-    throw nativeErr;
-  }
-}
 
 export const playBgmTheme = async (audioDataUri: string, gamePath?: string) => {
   try {
-    if (isMuted) return;
+    if (isMuted || !audioDataUri) return;
     if (currentBgmPath === gamePath && isBgmPlaying()) return;
 
     stopBgmTheme(false);
     currentBgmPath = gamePath || null;
 
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended' || (ctx.state as string) === 'interrupted') {
-      await ctx.resume().catch(() => {});
-    }
+    let playUrl = audioDataUri;
+    try {
+      const parts = audioDataUri.split(',');
+      if (parts.length >= 2) {
+        const base64Data = parts[1];
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: mimeType });
+        playUrl = URL.createObjectURL(blob);
+        currentBlobUrl = playUrl;
+      }
+    } catch (_) {}
 
-    const parts = audioDataUri.split(',');
-    if (parts.length < 2) return;
-    const base64Data = parts[1];
-    if (!base64Data) return;
+    const audio = new Audio();
+    audio.src = playUrl;
+    audio.loop = true;
+    audio.volume = 0.05;
+    bgmAudioElement = audio;
 
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    await audio.play();
 
-    const audioBuffer = await decodeAudioDataReliable(ctx, bytes.buffer);
-
-    const source = ctx.createBufferSource();
-    const gain = ctx.createGain();
-
-    source.buffer = audioBuffer;
-    source.loop = true;
-
-    const now = ctx.currentTime + 0.02;
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.65, now + 0.35);
-
-    source.connect(gain);
-    gain.connect(ctx.destination);
-
-    source.start(now);
-    bgmSourceNode = source;
-    bgmGainNode = gain;
+    // Smooth volume fade-in
+    let vol = 0.05;
+    const fadeTimer = setInterval(() => {
+      if (!bgmAudioElement || bgmAudioElement !== audio) {
+        clearInterval(fadeTimer);
+        return;
+      }
+      vol = Math.min(vol + 0.05, 0.70);
+      audio.volume = vol;
+      if (vol >= 0.70) {
+        clearInterval(fadeTimer);
+      }
+    }, 30);
   } catch (e) {
-    console.error("playBgmTheme error:", e);
+    console.warn("playBgmTheme error:", e);
   }
 };
 
-export const stopBgmTheme = (_smooth = true) => {
+export const stopBgmTheme = (smooth = true) => {
   currentBgmPath = null;
-  if (bgmSourceNode && bgmGainNode) {
-    const source = bgmSourceNode;
-    const gain = bgmGainNode;
-    bgmSourceNode = null;
-    bgmGainNode = null;
+  if (bgmAudioElement) {
+    const audio = bgmAudioElement;
+    bgmAudioElement = null;
 
+    if (smooth && audio.volume > 0.1) {
+      const fadeOutTimer = setInterval(() => {
+        if (audio.volume > 0.1) {
+          audio.volume = Math.max(0, audio.volume - 0.1);
+        } else {
+          clearInterval(fadeOutTimer);
+          audio.pause();
+          audio.src = '';
+        }
+      }, 25);
+    } else {
+      audio.pause();
+      audio.src = '';
+    }
+  }
+
+  if (currentBlobUrl) {
     try {
-      source.stop();
-      source.disconnect();
-      gain.disconnect();
+      URL.revokeObjectURL(currentBlobUrl);
     } catch (_) {}
+    currentBlobUrl = null;
   }
 };

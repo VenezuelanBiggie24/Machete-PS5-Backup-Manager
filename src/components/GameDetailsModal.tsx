@@ -27,6 +27,19 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
   const [copied, setCopied] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [computedSize, setComputedSize] = useState<number | null>(game?.size_bytes || null);
+
+  useEffect(() => {
+    if (game?.size_bytes && game.size_bytes > 0) {
+      setComputedSize(game.size_bytes);
+    } else if (game?.is_dir && game?.path) {
+      invoke<number>('get_folder_size', { path: game.path })
+        .then((sz) => {
+          if (sz > 0) setComputedSize(sz);
+        })
+        .catch(console.error);
+    }
+  }, [game?.path, game?.size_bytes, game?.is_dir]);
 
   useEffect(() => {
     let active = true;
@@ -218,7 +231,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                   <div>
                     <div className="text-[10px] font-mono text-slate-400 uppercase">{t("spec_size")}</div>
                     <div className="text-xs font-mono font-bold text-white">
-                      {game.size_bytes ? formatBytes(game.size_bytes) : t("calculating")}
+                      {computedSize || game.size_bytes ? formatBytes(computedSize || game.size_bytes!) : t("calculating")}
                     </div>
                   </div>
                 </div>

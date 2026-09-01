@@ -730,58 +730,37 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
     let mut decoder_opt = None;
 
-    // 1. Direct offset 40 in fmt chunk (standard Sony WAVE_FORMAT_EXTENSIBLE ATRAC9)
-    if fmt.len() >= 44 && fmt[40] == 0xFE {
-        if let Ok(config_bytes) = fmt[40..44].try_into() {
-            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                decoder_opt = Some(dec);
+    // Helper to probe ATRAC9 config words in normal and endian-swapped byte order
+    let test_config = |slice: &[u8]| -> Option<atrac9dec::Atrac9Decoder> {
+        if slice.len() < 4 { return None; }
+        for w in slice.windows(4) {
+            let buf4: [u8; 4] = [w[0], w[1], w[2], w[3]];
+            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&buf4) {
+                if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                    return Some(dec);
+                }
             }
-        }
-    }
-
-    // 2. Scan fmt chunk for any valid config starting with 0xFE
-    if decoder_opt.is_none() {
-        for off in 0..fmt.len().saturating_sub(3) {
-            if fmt[off] == 0xFE {
-                if let Ok(config_bytes) = fmt[off..off + 4].try_into() {
-                    if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                        decoder_opt = Some(dec);
-                        break;
-                    }
+            let rev4: [u8; 4] = [w[3], w[2], w[1], w[0]];
+            if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&rev4) {
+                if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
+                    return Some(dec);
                 }
             }
         }
-    }
+        None
+    };
 
-    // 3. Scan fact chunk fallback
+    if let Some(dec) = test_config(fmt) {
+        decoder_opt = Some(dec);
+    }
     if decoder_opt.is_none() {
         if let Some(fact) = fact_data {
-            for off in 0..fact.len().saturating_sub(3) {
-                if fact[off] == 0xFE {
-                    if let Ok(config_bytes) = fact[off..off + 4].try_into() {
-                        if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                            decoder_opt = Some(dec);
-                            break;
-                        }
-                    }
-                }
-            }
+            decoder_opt = test_config(fact);
         }
     }
-
-    // 4. Scan the first 128 bytes of the RIFF file header
     if decoder_opt.is_none() {
-        let scan_limit = at9_bytes.len().min(128);
-        for off in 0..scan_limit.saturating_sub(3) {
-            if at9_bytes[off] == 0xFE {
-                if let Ok(config_bytes) = at9_bytes[off..off + 4].try_into() {
-                    if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&config_bytes) {
-                        decoder_opt = Some(dec);
-                        break;
-                    }
-                }
-            }
-        }
+        let scan_limit = at9_bytes.len().min(256);
+        decoder_opt = test_config(&at9_bytes[..scan_limit]);
     }
 
     let mut decoder = decoder_opt?;
@@ -803,7 +782,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
     let mut superframe_pcm = vec![0i16; superframe_samples];
     let mut offset = 0;
 
-    let max_superframes = (sample_rate as usize * 60) / (frame_samples * frames_in_superframe);
+    let max_superframes = (sample_rate as usize * 90) / (frame_samples * frames_in_superframe);
     let mut superframes_decoded = 0;
 
     while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
@@ -855,33 +834,38 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
     if depth > 6 {
         return None;
     }
+
+    // Pass 1: Look for exact priority files in current directory or sce_sys
+    let priority_names = ["snd0.at9", "SND0.AT9", "snd0.wav", "SND0.WAV", "snd0.mp3", "bgm.at9", "theme.at9"];
+    for name in &priority_names {
+        let cand = dir.join(name);
+        if cand.is_file() {
+            let ext = cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            return Some((cand, ext));
+        }
+        let sce_cand = dir.join("sce_sys").join(name);
+        if sce_cand.is_file() {
+            let ext = sce_cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            return Some((sce_cand, ext));
+        }
+        let sce_upper_cand = dir.join("SCE_SYS").join(name);
+        if sce_upper_cand.is_file() {
+            let ext = sce_upper_cand.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            return Some((sce_upper_cand, ext));
+        }
+    }
+
+    // Pass 2: Recurse into subdirectories
     if let Ok(entries) = fs::read_dir(dir) {
-        let mut subdirs = Vec::new();
         for entry in entries.flatten() {
             let path = entry.path();
-            let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
-            if name_lower.starts_with('.') {
-                continue;
-            }
-            if path.is_file() {
-                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-                if ext == "at9" || name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.contains("sound") || name_lower.contains("audio") {
-                    match ext.as_str() {
-                        "at9" => return Some((path, "at9".to_string())),
-                        "wav" => return Some((path, "wav".to_string())),
-                        "mp3" => return Some((path, "mp3".to_string())),
-                        "ogg" => return Some((path, "ogg".to_string())),
-                        "flac" => return Some((path, "flac".to_string())),
-                        _ => {}
+            if path.is_dir() {
+                let name_lower = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                if !name_lower.starts_with('.') {
+                    if let Some(res) = find_game_audio_file(&path, depth + 1) {
+                        return Some(res);
                     }
                 }
-            } else if path.is_dir() {
-                subdirs.push(path);
-            }
-        }
-        for sub in subdirs {
-            if let Some(res) = find_game_audio_file(&sub, depth + 1) {
-                return Some(res);
             }
         }
     }
@@ -957,7 +941,7 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
         } else {
             if let Ok(file) = fs::File::open(p) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(64 * 1024 * 1024); // Complete 64MB read in a loop
+                let mut reader = file.take(128 * 1024 * 1024); // 128MB scan
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
                     for i in 0..slice.len().saturating_sub(64) {

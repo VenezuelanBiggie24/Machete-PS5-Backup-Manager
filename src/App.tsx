@@ -430,6 +430,23 @@ export default function App() {
           // Keep offline title / local icon on network fallback
         }
       });
+
+      // 4. Background: Asynchronously calculate folder sizes without blocking UI or thrashing disk
+      const folderItems = result.filter(f => f.is_dir && (!f.size_bytes || f.size_bytes === 0));
+      if (folderItems.length > 0) {
+        (async () => {
+          for (const folder of folderItems) {
+            try {
+              const size = await invoke<number>('get_folder_size', { path: folder.path });
+              if (size > 0) {
+                setFiles(prev => prev.map(item => item.path === folder.path ? { ...item, size_bytes: size } : item));
+              }
+            } catch (err) {
+              console.error(`Could not calculate folder size for ${folder.path}:`, err);
+            }
+          }
+        })();
+      }
     } catch (e) {
       console.error(e);
       setIsLoading(false);
@@ -942,7 +959,7 @@ export default function App() {
       {/* Game Details Modal */}
       {inspectingGame && (
         <GameDetailsModal
-          game={inspectingGame}
+          game={files.find(f => f.path === inspectingGame.path) || inspectingGame}
           meta={inspectingGame.ppsa ? metadata[inspectingGame.ppsa] : null}
           onClose={() => setInspectingGame(null)}
           onRename={(ppsa, title) => openRenameModal(ppsa, title)}
