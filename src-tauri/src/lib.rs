@@ -40,6 +40,7 @@ use base64::{Engine as _, engine::general_purpose};
 use std::io::Read;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 struct CustomMeta {
@@ -945,12 +946,14 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> { Ok(Non
 
 pub struct NativeAudioPlayer {
     current_process: Arc<Mutex<Option<std::process::Child>>>,
+    latest_request: Arc<AtomicUsize>,
 }
 
 impl NativeAudioPlayer {
     fn new() -> Self {
         Self {
             current_process: Arc::new(Mutex::new(None)),
+            latest_request: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -1024,7 +1027,14 @@ pub type AudioState = Arc<Mutex<NativeAudioPlayer>>;
 
 #[tauri::command]
 async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>) -> Result<bool, String> {
+    let (request_id, token) = {
+        let player = state.inner().lock().unwrap();
+        let id = player.latest_request.fetch_add(1, Ordering::SeqCst) + 1;
+        (id, Arc::clone(&player.latest_request))
+    };
+
     let wav_bytes = tauri::async_runtime::spawn_blocking(move || -> Option<Vec<u8>> {
+        if token.load(Ordering::SeqCst) != request_id { return None; }
         let p = Path::new(&path);
         if !p.exists() {
             return None;
@@ -1046,6 +1056,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                     if let Ok(mut f) = fs::File::open(&cand) {
                         let mut buf = Vec::new();
                         if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                            if token.load(Ordering::SeqCst) != request_id { return None; }
                             if kind == "at9" {
                                 if let Some(wav) = decode_at9_to_wav(&buf) {
                                     return Some(wav);
@@ -1062,6 +1073,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                 if let Ok(mut f) = fs::File::open(&audio_path) {
                     let mut buf = Vec::new();
                     if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                        if token.load(Ordering::SeqCst) != request_id { return None; }
                         if kind == "at9" {
                             if let Some(wav) = decode_at9_to_wav(&buf) {
                                 return Some(wav);
@@ -1099,6 +1111,9 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                         }
                     }
                     if let Some(at9_slice) = largest_at9_slice {
+                        if token.load(Ordering::SeqCst) != request_id {
+                            return None;
+                        }
                         if let Some(wav) = decode_at9_to_wav(at9_slice) {
                             return Some(wav);
                         }

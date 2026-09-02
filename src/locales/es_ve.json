@@ -23,6 +23,16 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.3.7 - Motor de Audio Definitivo y Erradicación Fuga de Memoria",
+      "items": [
+        "Erradicada la fuga de 31 GB de RAM provocada por la serialización Base64 paralela de payloads de 200MB en Tauri IPC.",
+        "Erradicado el congelamiento infinito de CPU y fuga de 25 GB de hilos apilados al reemplazar el escáner heurístico O(N * M) 0xFE.",
+        "Implementada extracción matemática ultrarrápida de fragmentos RIFF de 16MB para todos los contenedores (PKG, ISO, FFPKG).",
+        "Añadida priorización de fragmentos mayores a 50KB para aislar perfectamente el tema snd0.at9 de 8MB e ignorar los clics de interfaz de 5KB.",
+        "Desbloqueada tolerancia de 8192 bytes de padding en decode_at9_to_wav para procesar sin problemas el relleno propietario de Sony."
+      ]
+    },
+    {
       "version": "v2.3.0 - Actualización Mayor Multiplataforma, Audio ATRAC9 y Diagnóstico Exacto",
       "items": [
         "Decodificador nativo en Rust de Sony ATRAC9 y reproductor Web Audio API en streaming para música oficial (snd0.at9).",

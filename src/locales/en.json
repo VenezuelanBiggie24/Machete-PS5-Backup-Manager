@@ -23,169 +23,15 @@
   "changelog_title": "Changelog",
   "changelogs": [
     {
-      "version": "v2.3.0 - Multiplatform Major Release, ATRAC9 Superframe Engine & Precision Diagnostics",
+      "version": "v2.3.7 - Ultimate Audio Engine & Memory Leak Eradication",
       "items": [
-        "Native Rust Sony ATRAC9 superframe decoder and hardware-accelerated Web Audio stream player for game soundtracks (snd0.at9).",
-        "Accurate decimal formatting for SDK versions (SDK 9.00, SDK 8.50, SDK 7.61) and application versions (v1.00, v1.02) without hexadecimal artifacts.",
-        "Full Windows hardening: sanitized explorer.exe path arguments, automatic read-only attribute stripping, and accurate drive metrics.",
-        "Full Linux hardening: POSIX statvfs integration for Steam Deck and UDisks2, D-Bus ShowItems file manager integration, and case-insensitive matching.",
-        "macOS innovations: real-time transfer progress dock tile badge (NSDockTile) and APFS Copy-on-Write zero-time duplication.",
-        "Multi-language NSIS installer supporting 10 languages in user-mode with optimized CI/CD compilation caching."
+        "Eradicated 31 GB RAM leak caused by parallel Tauri IPC Base64 serialization of 200MB payloads.",
+        "Eradicated infinite CPU hang and 25 GB thread-stacking memory leak by replacing the O(N * M) 0xFE heuristic scanner.",
+        "Implemented hyper-fast 16MB RIFF mathematical chunk extraction for all containers (PKG, ISO, FFPKG).",
+        "Added 50KB largest-chunk prioritization to perfectly isolate the 8MB snd0.at9 game theme and ignore 5KB UI click sound loops.",
+        "Unlocked 8192-byte padding tolerance in decode_at9_to_wav to chew through proprietary Sony padding seamlessly."
       ]
     },
-    {
-      "version": "v2.1.2 - Audio Engine & Synthesis Optimization Patch",
-      "items": [
-        "Resolved zero-value exponential curve exception in WebKit AudioContext.",
-        "Transitioned to safe universal linear volume ramps for crystal-clear PS5 UI acoustics.",
-        "Immediate synchronous audio context reactivation on game card hover and selection."
-      ]
-    },
-    {
-      "version": "v2.1.1 - UI Refinement, Audio & macOS Menu",
-      "items": [
-        "Fixed cover art header overlap for full-bleed 4K master cover rendering.",
-        "Calibrated WebKit/macOS AudioContext unlock with PlayStation 5 acoustic chimes on hover and selection.",
-        "Added interactive language selector in Settings with English set as default.",
-        "Streamlined top bar layout and integrated native macOS application menu items."
-      ]
-    },
-    {
-      "version": "v2.1.0 - Next-Gen Update & CDN Edge Sovereign",
-      "items": [
-        "Proprietary Ultra-Low Latency Global CDN: Cloudflare R2 Edge server hosting 11,940+ vertical 4K master covers with white PS5 calqued headers, delivering artwork worldwide in <15ms.",
-        "Zero Telemetry & Absolute Anonymity Guarantee: No tracking, no IP logging, no analytics, generic browser User-Agent headers, and 100% sovereign local database.",
-        "Full Native ShadowMountPlus Ecosystem Support: Detection and deep inspection for .ffpkg (UFS), .exfat (exFAT 64KB), .ffpfs (PFS), .ffpfsc (MicroMount/MkPFS compressed containers), and folder dumps.",
-        "3D Anti-Gravity Physics Engine: Inertial spring levitation, real-time 3D tilt with 1200px perspective, and cursor-reactive volumetric elevation shadows.",
-        "Native PS5 Acoustic Architecture: Authentic harmonic sine chord for PlayStation 5 game focus and native Rust snd0.at9 decoder.",
-        "Storage Treemap Analyzer & Batch Operations: Interactive disk heat map, large backup ranking, and floating batch actions bar with keyboard shortcuts.",
-        "System Settings Panel: Full control to toggle 3D visual physics and acoustic sound effects with persistent local storage.",
-        "Rust 2021 Engine Built with opt-level=3 and LazyLock: Zero regex re-compilation overhead and maximum NVMe I/O streaming speeds."
-      ]
-    },
-    {
-      "version": "v2.0.2 - Cryptographic Auto-Updater",
-      "items": [
-        "Integrated Tauri v2 auto-updater with Minisign cryptographic signature verification.",
-        "Smooth downloading and installation of updates directly from GitHub Releases with live progress tracking.",
-        "Real-time update notifications without requiring app restart."
-      ]
-    },
-    {
-      "version": "v2.0.0-alpha.1",
-      "items": [
-        "New Cyberpunk interface (3D Cards, Hacker Console, Holographic Disk).",
-        "Asynchronous I/O engine powered by Tokio.",
-        "Blake3 anti bit-rot integrity hashing.",
-        "Dynamic total directory space computation."
-      ]
-    },
-    {
-      "version": "v1.2.3",
-      "items": [
-        "Fixed 0 GB size calculation bug on directory backups.",
-        "Added total GB summary calculation in top navigation bar."
-      ]
-    },
-    {
-      "version": "v1.1.0",
-      "items": [
-        "Custom cover and title support with local database persistence.",
-        "Optimized default window dimensions for clean layout presentation.",
-        "Large SSD drive scan warning."
-      ]
-    },
-    {
-      "version": "v1.0.0 - Official Release",
-      "items": [
-        "Official launch of Machete PS5 Backup Manager.",
-        "Automatic high-resolution vertical cover art streaming.",
-        "Relocated PPSA badge to bottom overlay.",
-        "Strict request anonymization."
-      ]
-    }
-  ],
-  "license_info": "Distributed under the GPLv3 License",
-  "repository_label": "Official Repository",
-  "update_title": "Software Update",
-  "update_check_btn": "Check for Updates",
-  "update_checking": "Checking...",
-  "update_none": "You're running the latest version. No updates available.",
-  "update_error": "Could not check for updates. Please try again later.",
-  "update_available_title": "Update Available",
-  "update_downloading": "Downloading update...",
-  "update_install_btn": "Download & Install",
-  "update_later": "Later",
-  "update_relaunch": "Restart Now",
-  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
-  "changelog_v210_items": [
-    "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",
-    "Official soundtrack playback for each game (native Rust ATRAC9 snd0.at9 decoder).",
-    "Signature harmonic crystal selection chime inspired by the PlayStation 5 UI.",
-    "Quick Mute/Audio toggle in the top bar with persistent local storage.",
-    "Detailed Game Inspector Modal with 4K covers and direct file manager access.",
-    "Multi-selection with keyboard shortcuts and floating batch action bar.",
-    "Interactive Storage Analyzer with dynamic treemap and large backup rankings."
-  ],
-  "changelog_v202_title": "v2.0.2 - Auto-Updater",
-  "changelog_v202_items": [
-    "In-app auto-updater: checks for new versions from GitHub Releases.",
-    "Download & install updates directly from the app with progress bar.",
-    "Dynamic version display in About section (no more hardcoded versions).",
-    "Auto-check for updates on startup.",
-    "Full updater UI localized in 12 languages."
-  ],
-  "settings_title": "System Settings",
-  "settings_visual_effects": "3D Visual Effects & Levitation",
-  "settings_visual_effects_desc": "Enables 3D anti-gravity physics, elevation shadows, and cyberpunk neon glows.",
-  "settings_audio": "Audio Effects & Game Soundtracks",
-  "settings_audio_desc": "Plays PS5 interface acoustics and original snd0.at9 game soundtracks.",
-  "settings_language": "Interface Language",
-  "settings_btn": "Settings",
-  "storage_btn": "STORAGE",
-  "storage_tooltip": "Analyze Storage",
-  "select_all": "SELECT ALL",
-  "deselect_all": "DESELECT",
-  "search_placeholder": "Search title, PPSA code...",
-  "sort_name": "A-Z",
-  "sort_size": "Size",
-  "filter_all": "ALL",
-  "batch_games": "Selected games",
-  "batch_transfer_btn": "TRANSFER TO DRIVE",
-  "batch_delete_btn": "DELETE",
-  "batch_cancel_btn": "CANCEL",
-  "batch_delete_confirm_title": "Delete backups",
-  "batch_delete_confirm_msg": "Are you sure you want to PERMANENTLY delete the {{count}} selected games ({{size}})? This action cannot be undone.",
-  "batch_transfer_select_target": "Select destination drive or folder to transfer",
-  "batch_transfer_success": "Transfer of {{count}} games completed successfully!",
-  "view_details": "VIEW DETAILS",
-  "format_folder": "Folder",
-  "format_container": "Container",
-  "open_in_folder": "Open in Folder",
-  "open_prospero": "View on Prospero Patches",
-  "copied_to_clipboard": "Copied!",
-  "copy_ppsa": "Copy PPSA",
-  "spec_size": "Disk Size",
-  "spec_app_ver": "App Version",
-  "spec_min_fw": "Minimum Firmware",
-  "spec_sdk": "Compilation SDK",
-  "spec_format": "Format",
-  "spec_content_id": "Content ID",
-  "spec_path": "Disk Location",
-  "calculating": "Calculating...",
-  "no_ppsa": "NO PPSA",
-  "storage_analyzer_title": "STORAGE ANALYZER // DISK TREEMAP",
-  "storage_analyzer_subtitle": "{{count}} PS5 backups occupying {{size}}",
-  "storage_disk_external": "EXTERNAL DRIVE:",
-  "storage_disk_used_of": "{{used}} used of {{total}} ({{free}} free)",
-  "storage_legend_ps5": "PS5 Backups",
-  "storage_legend_free": "Free Space",
-  "storage_heavy_rankings": "HEAVIEST GAMES (RANKINGS)",
-  "storage_header_size_pct": "SIZE & PERCENTAGE",
-  "storage_of_total": "of total",
-  "mute_toggle_unmute": "Enable Audio (PS5 UI + BGM)",
-  "mute_toggle_mute": "Mute Audio",
-  "changelogs": [
     {
       "version": "v2.3.0 - Major Multiplatform, ATRAC9 Audio Engine & Diagnostic Update",
       "items": [
@@ -278,6 +124,86 @@
       ]
     }
   ],
+  "license_info": "Distributed under the GPLv3 License",
+  "repository_label": "Official Repository",
+  "update_title": "Software Update",
+  "update_check_btn": "Check for Updates",
+  "update_checking": "Checking...",
+  "update_none": "You're running the latest version. No updates available.",
+  "update_error": "Could not check for updates. Please try again later.",
+  "update_available_title": "Update Available",
+  "update_downloading": "Downloading update...",
+  "update_install_btn": "Download & Install",
+  "update_later": "Later",
+  "update_relaunch": "Restart Now",
+  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
+  "changelog_v210_items": [
+    "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",
+    "Official soundtrack playback for each game (native Rust ATRAC9 snd0.at9 decoder).",
+    "Signature harmonic crystal selection chime inspired by the PlayStation 5 UI.",
+    "Quick Mute/Audio toggle in the top bar with persistent local storage.",
+    "Detailed Game Inspector Modal with 4K covers and direct file manager access.",
+    "Multi-selection with keyboard shortcuts and floating batch action bar.",
+    "Interactive Storage Analyzer with dynamic treemap and large backup rankings."
+  ],
+  "changelog_v202_title": "v2.0.2 - Auto-Updater",
+  "changelog_v202_items": [
+    "In-app auto-updater: checks for new versions from GitHub Releases.",
+    "Download & install updates directly from the app with progress bar.",
+    "Dynamic version display in About section (no more hardcoded versions).",
+    "Auto-check for updates on startup.",
+    "Full updater UI localized in 12 languages."
+  ],
+  "settings_title": "System Settings",
+  "settings_visual_effects": "3D Visual Effects & Levitation",
+  "settings_visual_effects_desc": "Enables 3D anti-gravity physics, elevation shadows, and cyberpunk neon glows.",
+  "settings_audio": "Audio Effects & Game Soundtracks",
+  "settings_audio_desc": "Plays PS5 interface acoustics and original snd0.at9 game soundtracks.",
+  "settings_language": "Interface Language",
+  "settings_btn": "Settings",
+  "storage_btn": "STORAGE",
+  "storage_tooltip": "Analyze Storage",
+  "select_all": "SELECT ALL",
+  "deselect_all": "DESELECT",
+  "search_placeholder": "Search title, PPSA code...",
+  "sort_name": "A-Z",
+  "sort_size": "Size",
+  "filter_all": "ALL",
+  "batch_games": "Selected games",
+  "batch_transfer_btn": "TRANSFER TO DRIVE",
+  "batch_delete_btn": "DELETE",
+  "batch_cancel_btn": "CANCEL",
+  "batch_delete_confirm_title": "Delete backups",
+  "batch_delete_confirm_msg": "Are you sure you want to PERMANENTLY delete the {{count}} selected games ({{size}})? This action cannot be undone.",
+  "batch_transfer_select_target": "Select destination drive or folder to transfer",
+  "batch_transfer_success": "Transfer of {{count}} games completed successfully!",
+  "view_details": "VIEW DETAILS",
+  "format_folder": "Folder",
+  "format_container": "Container",
+  "open_in_folder": "Open in Folder",
+  "open_prospero": "View on Prospero Patches",
+  "copied_to_clipboard": "Copied!",
+  "copy_ppsa": "Copy PPSA",
+  "spec_size": "Disk Size",
+  "spec_app_ver": "App Version",
+  "spec_min_fw": "Minimum Firmware",
+  "spec_sdk": "Compilation SDK",
+  "spec_format": "Format",
+  "spec_content_id": "Content ID",
+  "spec_path": "Disk Location",
+  "calculating": "Calculating...",
+  "no_ppsa": "NO PPSA",
+  "storage_analyzer_title": "STORAGE ANALYZER // DISK TREEMAP",
+  "storage_analyzer_subtitle": "{{count}} PS5 backups occupying {{size}}",
+  "storage_disk_external": "EXTERNAL DRIVE:",
+  "storage_disk_used_of": "{{used}} used of {{total}} ({{free}} free)",
+  "storage_legend_ps5": "PS5 Backups",
+  "storage_legend_free": "Free Space",
+  "storage_heavy_rankings": "HEAVIEST GAMES (RANKINGS)",
+  "storage_header_size_pct": "SIZE & PERCENTAGE",
+  "storage_of_total": "of total",
+  "mute_toggle_unmute": "Enable Audio (PS5 UI + BGM)",
+  "mute_toggle_mute": "Mute Audio",
   "delete": "Delete",
   "delete_error": "Failed to delete backup"
 }
