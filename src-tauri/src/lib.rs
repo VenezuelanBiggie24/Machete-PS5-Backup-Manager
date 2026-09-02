@@ -790,7 +790,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
         // Try to find a valid stream by requiring at least 3 consecutive frames to decode perfectly, 
         // OR the rest of the data if there's less than 3 frames.
-        let max_offset = if has_riff { 16 } else { 8192 };
+        let max_offset = 8192;
         while offset + superframe_bytes <= data.len() && offset < max_offset {
             let mut valid = true;
             let check_frames = 3.min((data.len() - offset) / superframe_bytes);
@@ -1075,7 +1075,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
         } else {
             if let Ok(file) = fs::File::open(p) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(256 * 1024 * 1024);
+                let mut reader = file.take(16 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
                     let mut largest_at9_slice = None;
@@ -1086,7 +1086,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
                                 // Sound effects are small. Theme songs are large. We want the theme song (> 100KB)
-                                if riff_size > 100_000 && riff_size > largest_size {
+                                if riff_size > 50_000 && riff_size > largest_size {
                                     largest_size = riff_size;
                                     let at9_slice = if i + riff_size <= slice.len() {
                                         &slice[i..i + riff_size]
