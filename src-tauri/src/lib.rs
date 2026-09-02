@@ -704,8 +704,11 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
     let mut candidate_decoders = Vec::new();
     let mut data: &[u8] = at9_bytes;
+    let mut total_samples_from_fact: Option<usize> = None;
+    let mut has_riff = false;
 
     if at9_bytes.len() >= 12 && &at9_bytes[0..4] == b"RIFF" {
+        has_riff = true;
         let mut pos = 12;
         let mut fmt_data = None;
         let mut fact_data = None;
@@ -742,6 +745,9 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         }
         if let Some(fact) = fact_data {
             candidate_decoders.extend(get_configs(fact));
+            if fact.len() >= 4 {
+                total_samples_from_fact = Some(u32::from_le_bytes(fact[0..4].try_into().unwrap_or([0; 4])) as usize);
+            }
         }
 
         if let Some(d) = audio_data {
@@ -778,16 +784,28 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
         let mut all_pcm: Vec<i16> = Vec::new();
         let mut superframe_pcm = vec![0i16; superframe_samples];
         let max_superframes = (sample_rate as usize * 90) / (frame_samples * frames_in_superframe);
-        let mut superframes_decoded = 0;
 
         let mut offset = 0;
         let mut found_start = false;
+
+        // Try to find a valid stream by requiring at least 3 consecutive frames to decode perfectly, 
+        // OR the rest of the data if there's less than 3 frames.
         while offset + superframe_bytes <= data.len() && offset < 8192 {
-            let test_slice = &data[offset..offset + superframe_bytes];
-            if decoder.decode(test_slice, &mut superframe_pcm).is_ok() {
-                all_pcm.extend_from_slice(&superframe_pcm);
-                superframes_decoded += 1;
-                offset += superframe_bytes;
+            let mut valid = true;
+            let check_frames = 3.min((data.len() - offset) / superframe_bytes);
+            if check_frames < 1 {
+                break;
+            }
+
+            for i in 0..check_frames {
+                let test_slice = &data[offset + i * superframe_bytes .. offset + (i + 1) * superframe_bytes];
+                if decoder.decode(test_slice, &mut superframe_pcm).is_err() {
+                    valid = false;
+                    break;
+                }
+            }
+
+            if valid {
                 found_start = true;
                 break;
             }
@@ -798,6 +816,7 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
             continue;
         }
 
+        let mut superframes_decoded = 0;
         while offset + superframe_bytes <= data.len() && superframes_decoded < max_superframes {
             let frame_slice = &data[offset..offset + superframe_bytes];
             if decoder.decode(frame_slice, &mut superframe_pcm).is_ok() {
@@ -805,22 +824,20 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
                 superframes_decoded += 1;
                 offset += superframe_bytes;
             } else {
-                let mut synced = false;
-                for delta in 1..frame_bytes.min(256) {
-                    if offset + delta + superframe_bytes <= data.len() {
-                        let re_slice = &data[offset + delta..offset + delta + superframe_bytes];
-                        if decoder.decode(re_slice, &mut superframe_pcm).is_ok() {
-                            all_pcm.extend_from_slice(&superframe_pcm);
-                            superframes_decoded += 1;
-                            offset += delta + superframe_bytes;
-                            synced = true;
-                            break;
-                        }
-                    }
-                }
-                if !synced {
-                    offset += superframe_bytes;
-                }
+                // Do NOT resync. We reached EOF or corrupted data.
+                break;
+            }
+        }
+        
+        // Anti-static/false positive filter for RAW scans without RIFF
+        if !has_riff && superframes_decoded < 3 && max_superframes >= 3 {
+             continue; // Probably just random noise that accidentally matched the config byte
+        }
+
+        if let Some(target_samples) = total_samples_from_fact {
+            let target_len = target_samples * channels;
+            if target_len > 0 && target_len < all_pcm.len() {
+                all_pcm.truncate(target_len);
             }
         }
 
