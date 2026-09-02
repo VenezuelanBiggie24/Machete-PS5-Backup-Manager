@@ -790,7 +790,8 @@ fn decode_at9_to_wav(at9_bytes: &[u8]) -> Option<Vec<u8>> {
 
         // Try to find a valid stream by requiring at least 3 consecutive frames to decode perfectly, 
         // OR the rest of the data if there's less than 3 frames.
-        while offset + superframe_bytes <= data.len() && offset < 8192 {
+        let max_offset = if has_riff { 16 } else { 8192 };
+        while offset + superframe_bytes <= data.len() && offset < max_offset {
             let mut valid = true;
             let check_frames = 3.min((data.len() - offset) / superframe_bytes);
             if check_frames < 1 {
@@ -1008,11 +1009,11 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
         } else {
             if let Ok(file) = fs::File::open(p) {
                 let mut buffer = Vec::new();
-                let mut reader = file.take(128 * 1024 * 1024); // 128MB scan
+                let mut reader = file.take(256 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
                     for i in 0..slice.len().saturating_sub(64) {
-                        if &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
+                        if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
                             let format_id = &slice[i+8..i+12];
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
@@ -1030,10 +1031,7 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
                     }
                 }
             }
-        }
-
-        Ok(None)
-    }).await.map_err(|e| e.to_string())?
+        }).await.map_err(|e| e.to_string())?
 }
 
 pub struct NativeAudioPlayer {
@@ -1168,13 +1166,9 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
         } else {
             if let Ok(file) = fs::File::open(p) {
                 let mut buffer = Vec::new();
-                // Read up to 256MB to find audio metadata in large PKGs or ISOs
                 let mut reader = file.take(256 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
-                    let mut found = false;
-                    
-                    // 1. Scan for standard RIFF WAV/AT9 chunks
                     for i in 0..slice.len().saturating_sub(64) {
                         if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
                             let format_id = &slice[i+8..i+12];
@@ -1188,34 +1182,12 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                                 if let Some(wav) = decode_at9_to_wav(at9_slice) {
                                     return Some(wav);
                                 }
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    // 2. Scan for RAW headerless ATRAC9 config words (0xFE...) if RIFF fails
-                    if !found {
-                        for i in 0..slice.len().saturating_sub(64) {
-                            if slice[i] == 0xFE {
-                                let buf4 = [slice[i], slice[i+1], slice[i+2], slice[i+3]];
-                                if let Ok(dec) = atrac9dec::Atrac9Decoder::new(&buf4) {
-                                    if dec.config().frame_bytes > 0 && dec.config().channel_count > 0 {
-                                        // Valid config word found! Pass up to 15MB to the decoder to verify and extract
-                                        let scan_end = (i + 15 * 1024 * 1024).min(slice.len());
-                                        if let Some(wav) = decode_at9_to_wav(&slice[i..scan_end]) {
-                                            return Some(wav);
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
                 }
             }
-        }
-        None
-    }).await.map_err(|e| e.to_string())?;
+        }).await.map_err(|e| e.to_string())?;
 
     if let Some(wav) = wav_bytes {
         let player = state.inner().lock().unwrap();
