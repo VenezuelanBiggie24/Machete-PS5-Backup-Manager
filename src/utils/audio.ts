@@ -491,7 +491,7 @@ export const playSuccessSound = () => {
  * Dual-Engine: Native OS CoreAudio/Process Player (Zero WebKit Restrictions) + HTML5 Audio Fallback
  */
 let bgmAudioElement: HTMLAudioElement | null = null;
-let currentBgmPath: string | null = null;
+
 let currentBlobUrl: string | null = null;
 let isNativePlaying = false;
 
@@ -499,75 +499,22 @@ export const isBgmPlaying = () => {
   return isNativePlaying || (bgmAudioElement !== null && !bgmAudioElement.paused);
 };
 
-export const playBgmTheme = async (audioDataUriOrPath: string, gamePath?: string) => {
+export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
   try {
-    if (isMuted) return;
-    const targetPath = gamePath || audioDataUriOrPath;
-    if (currentBgmPath === targetPath && isBgmPlaying()) return;
-
-    stopBgmTheme(false);
-    currentBgmPath = targetPath;
-
-    // 1. Primary Engine: Native OS Backend Playback (Hardware-accelerated, zero WebKit autoplay blocking)
-    try {
+    if (isMuted) return false;
+    if ((window as any).__TAURI_IPC__) {
       const nativePlayed = await invoke<boolean>('play_game_soundtrack', { path: targetPath });
-      if (nativePlayed) {
-        isNativePlaying = true;
-        return;
-      }
-    } catch (nativeErr) {
-      console.warn("[AudioEngine] Native soundtrack player fallback:", nativeErr);
+      return nativePlayed;
     }
-
-    // 2. Secondary Engine: Web Audio / HTML5 Audio Element Fallback
-    if (audioDataUriOrPath && audioDataUriOrPath.startsWith('data:')) {
-      let playUrl = audioDataUriOrPath;
-      try {
-        const parts = audioDataUriOrPath.split(',');
-        if (parts.length >= 2) {
-          const base64Data = parts[1];
-          const mimeMatch = parts[0].match(/:(.*?);/);
-          const mimeType = mimeMatch ? mimeMatch[1] : 'audio/wav';
-          const binaryString = atob(base64Data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: mimeType });
-          playUrl = URL.createObjectURL(blob);
-          currentBlobUrl = playUrl;
-        }
-      } catch (_) {}
-
-      const audio = new Audio();
-      audio.src = playUrl;
-      audio.loop = true;
-      audio.volume = 0.05;
-      bgmAudioElement = audio;
-
-      await audio.play();
-
-      // Smooth volume fade-in
-      let vol = 0.05;
-      const fadeTimer = setInterval(() => {
-        if (!bgmAudioElement || bgmAudioElement !== audio) {
-          clearInterval(fadeTimer);
-          return;
-        }
-        vol = Math.min(vol + 0.05, 0.70);
-        audio.volume = vol;
-        if (vol >= 0.70) {
-          clearInterval(fadeTimer);
-        }
-      }, 30);
-    }
+    return false;
   } catch (e) {
-    console.warn("[AudioEngine] playBgmTheme error:", e);
+    console.error("Failed to play BGM natively:", e);
+    return false;
   }
 };
 
 export const stopBgmTheme = (smooth = true) => {
-  currentBgmPath = null;
+  
 
   // Stop native backend audio player
   if (isNativePlaying) {

@@ -25,8 +25,9 @@ interface GameDetailsModalProps {
 
 export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover, onDelete, t }: GameDetailsModalProps) {
   const [copied, setCopied] = useState(false);
-  const [audioUri, setAudioUri] = useState<string | null>(null);
+  
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [hasAudio, setHasAudio] = useState(false);
   const [computedSize, setComputedSize] = useState<number | null>(game?.size_bytes || null);
 
   useEffect(() => {
@@ -44,31 +45,22 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
   useEffect(() => {
     let active = true;
 
-    // Trigger dual-engine soundtrack playback immediately
+    // Trigger native soundtrack playback immediately
     if (game?.path) {
-      playBgmTheme(game.path, game.path).then(() => {
-        if (active) setIsPlayingAudio(true);
-      });
-    }
-
-    // Fetch audio data URI for visualizer & fallback
-    invoke<string | null>('get_game_audio', { path: game?.path })
-      .then((uri) => {
+      playBgmTheme(game.path).then((success) => {
         if (!active) return;
-        if (uri) {
-          setAudioUri(uri);
+        if (success) {
+          setHasAudio(true);
           setIsPlayingAudio(true);
         } else {
           // Play atmospheric PS5 game focus chime
           playPS5GameSelectSound();
         }
-      })
-      .catch((err) => {
-        console.warn("Failed to fetch game audio:", err);
-        if (active) {
-          playPS5GameSelectSound();
-        }
+      }).catch((err) => {
+        console.warn("Failed to play game audio:", err);
+        if (active) playPS5GameSelectSound();
       });
+    }
 
     return () => {
       active = false;
@@ -81,8 +73,9 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
       stopBgmTheme();
       setIsPlayingAudio(false);
     } else if (game?.path) {
-      playBgmTheme(audioUri || game.path, game.path);
-      setIsPlayingAudio(true);
+      playBgmTheme(game.path).then(success => {
+        if (success) setIsPlayingAudio(true);
+      });
     }
   };
 
@@ -210,7 +203,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                       <ShieldCheck className="w-3.5 h-3.5" /> FW {game.min_firmware || game.sdk_ver}+
                     </span>
                   )}
-                  {audioUri && (
+                  {hasAudio && (
                     <button
                       onClick={toggleSoundtrack}
                       className={`px-2.5 py-1 rounded border text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all ${

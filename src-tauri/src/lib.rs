@@ -941,100 +941,7 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
 }
 
 #[tauri::command]
-async fn get_game_audio(path: String) -> Result<Option<String>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let p = Path::new(&path);
-        if !p.exists() {
-            return Ok(None);
-        }
-
-        if p.is_dir() {
-            let direct_candidates = [
-                (p.join("sce_sys").join("snd0.at9"), "at9"),
-                (p.join("SCE_SYS").join("snd0.at9"), "at9"),
-                (p.join("sce_sys").join("SND0.AT9"), "at9"),
-                (p.join("SCE_SYS").join("SND0.AT9"), "at9"),
-                (p.join("snd0.at9"), "at9"),
-                (p.join("SND0.AT9"), "at9"),
-                (p.join("sce_sys").join("snd0.wav"), "wav"),
-                (p.join("sce_sys").join("snd0.mp3"), "mp3"),
-            ];
-            for (cand, kind) in direct_candidates {
-                if cand.exists() {
-                    if let Ok(mut f) = fs::File::open(&cand) {
-                        let mut buf = Vec::new();
-                        if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
-                            if kind == "at9" {
-                                if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
-                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
-                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
-                                }
-                            } else {
-                                let mime = match kind {
-                                    "wav" => "audio/wav",
-                                    "mp3" => "audio/mpeg",
-                                    _ => "audio/wav",
-                                };
-                                let b64 = general_purpose::STANDARD.encode(&buf);
-                                return Ok(Some(format!("data:{};base64,{}", mime, b64)));
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Some((audio_path, kind)) = find_game_audio_file(p, 0) {
-                if let Ok(mut f) = fs::File::open(&audio_path) {
-                    let mut buf = Vec::new();
-                    if f.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
-                        if kind == "at9" {
-                            if let Some(wav_bytes) = decode_at9_to_wav(&buf) {
-                                let b64 = general_purpose::STANDARD.encode(&wav_bytes);
-                                return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
-                            }
-                        } else {
-                            let mime = match kind.as_str() {
-                                "wav" => "audio/wav",
-                                "mp3" => "audio/mpeg",
-                                "ogg" => "audio/ogg",
-                                "flac" => "audio/flac",
-                                _ => "audio/wav",
-                            };
-                            let b64 = general_purpose::STANDARD.encode(&buf);
-                            return Ok(Some(format!("data:{};base64,{}", mime, b64)));
-                        }
-                    }
-                }
-            }
-        } else {
-            if let Ok(file) = fs::File::open(p) {
-                let mut buffer = Vec::new();
-                let mut reader = file.take(256 * 1024 * 1024);
-                if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
-                    let slice = &buffer[..];
-                    for i in 0..slice.len().saturating_sub(64) {
-                        if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
-                            let format_id = &slice[i+8..i+12];
-                            if format_id == b"WAVE" || format_id == b"AT9 " {
-                                let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
-                                let at9_slice = if i + riff_size <= slice.len() {
-                                    &slice[i..i + riff_size]
-                                } else {
-                                    &slice[i..]
-                                };
-                                if let Some(wav_bytes) = decode_at9_to_wav(at9_slice) {
-                                    let b64 = general_purpose::STANDARD.encode(&wav_bytes);
-                                    return Ok(Some(format!("data:audio/wav;base64,{}", b64)));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Ok(None)
-    }).await.map_err(|e| e.to_string())?
-}
+async fn get_game_audio(path: String) -> Result<Option<String>, String> { Ok(None) }
 
 pub struct NativeAudioPlayer {
     current_process: Arc<Mutex<Option<std::process::Child>>>,
@@ -1171,20 +1078,29 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                 let mut reader = file.take(256 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
+                    let mut largest_at9_slice = None;
+                    let mut largest_size = 0;
                     for i in 0..slice.len().saturating_sub(64) {
                         if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
                             let format_id = &slice[i+8..i+12];
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
-                                let at9_slice = if i + riff_size <= slice.len() {
-                                    &slice[i..i + riff_size]
-                                } else {
-                                    &slice[i..]
-                                };
-                                if let Some(wav) = decode_at9_to_wav(at9_slice) {
-                                    return Some(wav);
+                                // Sound effects are small. Theme songs are large. We want the theme song (> 100KB)
+                                if riff_size > 100_000 && riff_size > largest_size {
+                                    largest_size = riff_size;
+                                    let at9_slice = if i + riff_size <= slice.len() {
+                                        &slice[i..i + riff_size]
+                                    } else {
+                                        &slice[i..]
+                                    };
+                                    largest_at9_slice = Some(at9_slice);
                                 }
                             }
+                        }
+                    }
+                    if let Some(at9_slice) = largest_at9_slice {
+                        if let Some(wav) = decode_at9_to_wav(at9_slice) {
+                            return Some(wav);
                         }
                     }
                 }
