@@ -502,8 +502,14 @@ export const isBgmPlaying = () => {
 export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
   try {
     if (isMuted) return false;
+    stopBgmTheme(); // Synchronously call stop to clear HTML5 audio states, but we ALSO need to invoke the backend stop.
     if ((window as any).__TAURI_IPC__) {
+      // Always stop the backend player first to prevent race conditions and token increment!
+      await invoke('stop_game_soundtrack').catch(() => {});
       const nativePlayed = await invoke<boolean>('play_game_soundtrack', { path: targetPath });
+      if (nativePlayed) {
+        isNativePlaying = true;
+      }
       return nativePlayed;
     }
     return false;

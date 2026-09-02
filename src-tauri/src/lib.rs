@@ -1136,6 +1136,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
 #[tauri::command]
 fn stop_game_soundtrack(state: tauri::State<'_, AudioState>) -> Result<(), String> {
     let player = state.inner().lock().unwrap();
+    player.latest_request.fetch_add(1, Ordering::SeqCst);
     player.stop();
     Ok(())
 }
