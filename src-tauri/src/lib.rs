@@ -1031,7 +1031,9 @@ async fn get_game_audio(path: String) -> Result<Option<String>, String> {
                     }
                 }
             }
-        }).await.map_err(|e| e.to_string())?
+        }
+        Ok(None)
+    }).await.map_err(|e| e.to_string())?
 }
 
 pub struct NativeAudioPlayer {
@@ -1187,7 +1189,9 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                     }
                 }
             }
-        }).await.map_err(|e| e.to_string())?;
+        }
+        None
+    }).await.map_err(|e| e.to_string())?;
 
     if let Some(wav) = wav_bytes {
         let player = state.inner().lock().unwrap();
