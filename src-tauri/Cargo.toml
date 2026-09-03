@@ -1,6 +1,6 @@
 [package]
 name = "machete"
-version = "2.3.11"
+version = "2.4.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

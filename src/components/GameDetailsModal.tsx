@@ -48,7 +48,10 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
     // Trigger native soundtrack playback immediately
     if (game?.path) {
       playBgmTheme(game.path).then((success) => {
-        if (!active) return;
+        if (!active) {
+          if (success) stopBgmTheme();
+          return;
+        }
         if (success) {
           setHasAudio(true);
           setIsPlayingAudio(true);
