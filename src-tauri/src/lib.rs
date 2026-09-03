@@ -926,7 +926,10 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
                 if ext == "at9" || name_lower.contains("snd0") || name_lower.contains("bgm") || name_lower.contains("theme") || name_lower.contains("soundtrack") {
                     let kind = if ext.is_empty() { "at9".to_string() } else { ext };
-                    return Some((path, kind));
+                    // STRICT FILTER: We only accept actual audio formats, not theme.xml or bgm_config.txt
+                    if kind == "at9" || kind == "wav" || kind == "mp3" || kind == "ogg" || kind == "flac" || kind == "m4a" {
+                        return Some((path, kind));
+                    }
                 }
             } else if path.is_dir() {
                 subdirs.push(path);
