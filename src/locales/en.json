@@ -136,24 +136,6 @@
   "update_install_btn": "Download & Install",
   "update_later": "Later",
   "update_relaunch": "Restart Now",
-  "changelog_v210_title": "v2.1.0 - Next-Gen Update",
-  "changelog_v210_items": [
-    "3D Anti-Gravity visual effect with floating levitation and dynamic floor shadows.",
-    "Official soundtrack playback for each game (native Rust ATRAC9 snd0.at9 decoder).",
-    "Signature harmonic crystal selection chime inspired by the PlayStation 5 UI.",
-    "Quick Mute/Audio toggle in the top bar with persistent local storage.",
-    "Detailed Game Inspector Modal with 4K covers and direct file manager access.",
-    "Multi-selection with keyboard shortcuts and floating batch action bar.",
-    "Interactive Storage Analyzer with dynamic treemap and large backup rankings."
-  ],
-  "changelog_v202_title": "v2.0.2 - Auto-Updater",
-  "changelog_v202_items": [
-    "In-app auto-updater: checks for new versions from GitHub Releases.",
-    "Download & install updates directly from the app with progress bar.",
-    "Dynamic version display in About section (no more hardcoded versions).",
-    "Auto-check for updates on startup.",
-    "Full updater UI localized in 12 languages."
-  ],
   "settings_title": "System Settings",
   "settings_visual_effects": "3D Visual Effects & Levitation",
   "settings_visual_effects_desc": "Enables 3D anti-gravity physics, elevation shadows, and cyberpunk neon glows.",
