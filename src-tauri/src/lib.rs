@@ -1025,6 +1025,42 @@ impl NativeAudioPlayer {
 
 pub type AudioState = Arc<Mutex<NativeAudioPlayer>>;
 
+
+// Mathematically surgical parser for Sony PKG containers
+fn extract_snd0_from_pkg_toc(slice: &[u8]) -> Option<&[u8]> {
+    // PKG Magic CNT (Big Endian)
+    if slice.len() < 0x20 || slice[0..4] != [0x7F, 0x43, 0x4E, 0x54] {
+        return None;
+    }
+    
+    // Read table entries count and offset (Big Endian)
+    let table_ents = u32::from_be_bytes(slice[0x010..0x014].try_into().unwrap_or([0;4])) as usize;
+    let table_offset = u32::from_be_bytes(slice[0x018..0x01C].try_into().unwrap_or([0;4])) as usize;
+    
+    if table_offset + (table_ents * 32) > slice.len() {
+        return None; // Table out of bounds in our 16MB slice
+    }
+    
+    // Parse ToC
+    for i in 0..table_ents {
+        let entry_start = table_offset + (i * 32);
+        let id = u32::from_be_bytes(slice[entry_start..entry_start+4].try_into().unwrap_or([0;4]));
+        
+        // 0x1240 is the hardcoded ID for snd0.at9
+        if id == 0x1240 {
+            let data_offset = u32::from_be_bytes(slice[entry_start+0x10..entry_start+0x14].try_into().unwrap_or([0;4])) as usize;
+            let data_size = u32::from_be_bytes(slice[entry_start+0x14..entry_start+0x18].try_into().unwrap_or([0;4])) as usize;
+            
+            if data_offset + data_size <= slice.len() {
+                return Some(&slice[data_offset..data_offset + data_size]);
+            } else {
+                return None; // File extends beyond our 16MB slice
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>) -> Result<bool, String> {
     let (request_id, token) = {
@@ -1090,30 +1126,38 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                 let mut reader = file.take(16 * 1024 * 1024);
                 if reader.read_to_end(&mut buffer).is_ok() && buffer.len() > 64 {
                     let slice = &buffer[..];
-                    let mut largest_at9_slice = None;
-                    let mut largest_size = 0;
+
+                    // 1. Try mathematical PKG ToC extraction first
+                    if let Some(snd0_at9_slice) = extract_snd0_from_pkg_toc(slice) {
+                        if token.load(Ordering::SeqCst) != request_id { return None; }
+                        if let Some(wav) = decode_at9_to_wav(snd0_at9_slice) {
+                            return Some(wav);
+                        }
+                    }
+
+                    // 2. Fallback to RIFF scanning for UFS2 / ISO / FFPKG containers
+                    let mut candidates: Vec<&[u8]> = Vec::new();
                     for i in 0..slice.len().saturating_sub(64) {
                         if slice[i] == b'R' && &slice[i..i+4] == b"RIFF" && i + 12 <= slice.len() {
                             let format_id = &slice[i+8..i+12];
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
-                                // Sound effects are small. Theme songs are large. We want the theme song (> 100KB)
-                                if riff_size > 50_000 && riff_size > largest_size {
-                                    largest_size = riff_size;
+                                if riff_size > 50_000 {
                                     let at9_slice = if i + riff_size <= slice.len() {
                                         &slice[i..i + riff_size]
                                     } else {
                                         &slice[i..]
                                     };
-                                    largest_at9_slice = Some(at9_slice);
+                                    candidates.push(at9_slice);
                                 }
                             }
                         }
                     }
-                    if let Some(at9_slice) = largest_at9_slice {
-                        if token.load(Ordering::SeqCst) != request_id {
-                            return None;
-                        }
+                    
+                    candidates.sort_by(|a, b| b.len().cmp(&a.len()));
+                    
+                    for at9_slice in candidates {
+                        if token.load(Ordering::SeqCst) != request_id { return None; }
                         if let Some(wav) = decode_at9_to_wav(at9_slice) {
                             return Some(wav);
                         }
