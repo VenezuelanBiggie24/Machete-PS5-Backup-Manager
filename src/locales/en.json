@@ -34,6 +34,27 @@
       ]
     },
     {
+      "version": "v2.4.0 - The React Stability Audit",
+      "date": "2026-09-03",
+      "title": "v2.4.0: Quality Assurance Update",
+      "items": [
+        "Fixed severe race condition in GameDetailsModal where unmounting during background audio load created zombie audio processes.",
+        "Eradicated React state memory leaks caused by lingering async folder size calculations.",
+        "Resolved multiple CSS flexbox overflow bugs that broke the UI layout with long German/Russian titles.",
+        "Purged obsolete legacy JSON translation keys to optimize load times."
+      ]
+    },
+    {
+      "version": "v2.3.10 - Mathematical PKG Parser",
+      "date": "2026-09-02",
+      "title": "v2.3.10: Surgical Audio Extraction",
+      "items": [
+        "Engineered a highly precise mathematical parser for the Sony PKG Table of Contents (ToC) to extract snd0.at9 with zero guessing.",
+        "Fixed 'Nada Suena' bug where large PCM WAV cutscene files near the beginning of PS5 containers confused the ATRAC9 decoder.",
+        "Implemented strict case-insensitive file extension filtering to prevent text/xml files from crashing the audio player."
+      ]
+    },
+    {
       "version": "v2.3.7 - Ultimate Audio Engine & Memory Leak Eradication",
       "items": [
         "Eradicated 31 GB RAM leak caused by parallel Tauri IPC Base64 serialization of 200MB payloads.",
