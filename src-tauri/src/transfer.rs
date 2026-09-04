@@ -43,11 +43,11 @@ pub async fn async_transfer(source_paths: Vec<String>, target_dir: String, windo
     for source in source_paths {
         let src_path = Path::new(&source);
         if src_path.is_file() {
-            let file_name = src_path.file_name().unwrap().to_str().unwrap();
+            let file_name = src_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown_file");
             let tgt_path = target_path.join(file_name);
             copy_file_chunked(src_path, &tgt_path, &mut transferred, total_size, &window, &mut last_emit, &mut last_transferred).await?;
         } else if src_path.is_dir() {
-            let dir_name = src_path.file_name().unwrap().to_str().unwrap();
+            let dir_name = src_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown_dir");
             let new_tgt = target_path.join(dir_name);
             copy_dir_recursive(src_path, &new_tgt, &mut transferred, total_size, &window, &mut last_emit, &mut last_transferred).await?;
         }
@@ -140,7 +140,10 @@ async fn copy_file_chunked(
         }
         
         // Compute Hash
-        hasher.update_rayon(&buffer[..n]);
+        let slice = &buffer[..n];
+        tokio::task::block_in_place(|| {
+            hasher.update_rayon(slice);
+        });
         
         writer.write_all(&buffer[..n]).await.map_err(|e| e.to_string())?;
         *transferred += n as u64;

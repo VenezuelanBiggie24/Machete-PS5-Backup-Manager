@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, ContactShadows, PresentationControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -124,6 +124,16 @@ interface HoloGridProps {
 export function HoloGrid({ files, metadata, selectedPaths, onToggleSelect, onClick }: HoloGridProps) {
   // Shared texture cache to prevent massive memory leaks when mapping 100s of identical defaults
   const textureCache = useMemo(() => new Map<string, THREE.Texture>(), []);
+
+  // Cleanup textures to prevent WebGL memory leaks on unmount
+  useEffect(() => {
+    return () => {
+      textureCache.forEach(texture => {
+        texture.dispose();
+      });
+      textureCache.clear();
+    };
+  }, [textureCache]);
 
   // Grid layout calculations
   const columns = 5;

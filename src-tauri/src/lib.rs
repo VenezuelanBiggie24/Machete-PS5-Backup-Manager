@@ -947,6 +947,7 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
 #[tauri::command]
 async fn get_game_audio(path: String) -> Result<Option<String>, String> { Ok(None) }
 
+#[derive(Clone)]
 pub struct NativeAudioPlayer {
     current_process: Arc<Mutex<Option<std::process::Child>>>,
     latest_request: Arc<AtomicUsize>,
@@ -1026,7 +1027,7 @@ impl NativeAudioPlayer {
     }
 }
 
-pub type AudioState = Arc<Mutex<NativeAudioPlayer>>;
+pub type AudioState = NativeAudioPlayer;
 
 
 // Mathematically surgical parser for Sony PKG containers
@@ -1067,7 +1068,7 @@ fn extract_snd0_from_pkg_toc(slice: &[u8]) -> Option<&[u8]> {
 #[tauri::command]
 async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>) -> Result<bool, String> {
     let (request_id, token) = {
-        let player = state.inner().lock().unwrap();
+        let player = state.inner();
         let id = player.latest_request.fetch_add(1, Ordering::SeqCst) + 1;
         (id, Arc::clone(&player.latest_request))
     };
@@ -1193,8 +1194,10 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
 
     if let Some(wav) = wav_bytes {
         if token.load(Ordering::SeqCst) != request_id { return Ok(false); }
-        let player = state.inner().lock().unwrap();
-        player.play_pcm_wav(&wav, 0.65)?;
+        let player = state.inner().clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            player.play_pcm_wav(&wav, 0.65)
+        }).await.map_err(|e| e.to_string())??;
         Ok(true)
     } else {
         Ok(false)
@@ -1202,10 +1205,12 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
 }
 
 #[tauri::command]
-fn stop_game_soundtrack(state: tauri::State<'_, AudioState>) -> Result<(), String> {
-    let player = state.inner().lock().unwrap();
+async fn stop_game_soundtrack(state: tauri::State<'_, AudioState>) -> Result<(), String> {
+    let player = state.inner().clone();
     player.latest_request.fetch_add(1, Ordering::SeqCst);
-    player.stop();
+    tauri::async_runtime::spawn_blocking(move || {
+        player.stop();
+    }).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1921,7 +1926,7 @@ pub fn run() {
                     }
                 });
             }
-            let audio_state: AudioState = Arc::new(Mutex::new(NativeAudioPlayer::new()));
+            let audio_state: AudioState = NativeAudioPlayer::new();
             app.manage(audio_state);
             Ok(())
         })
