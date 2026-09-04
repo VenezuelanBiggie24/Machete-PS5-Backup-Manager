@@ -23,6 +23,17 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.5.0",
+      "date": "2026-09-04",
+      "title": "v2.5.0: Actualización Arquitectónica ShadowMount Plus",
+      "changes": [
+        "Corregido error de 'no suena nada': Los contenedores homebrew de PS5 que usan archivos PCM WAV estándar sin compresión para snd0.at9 ahora son reconocidos y reproducidos perfectamente.",
+        "Corregida Condición de Carrera en React: Cambiar rápidamente entre juegos ya no causa que los procesos asíncronos huérfanos silencien la pista de audio de fondo.",
+        "Saturación de Tubería NVMe: El comprobador de transferencia anti-bit-rot Blake3 ahora utiliza 'rayon' para procesamiento multinúcleo, liberando la máxima velocidad en discos NVMe.",
+        "Optimizaciones de Renderizado en React: Se implementó memorización (React.memo) en la interfaz de la biblioteca de juegos. Seleccionar un juego ya no provoca que toda la cuadrícula se vuelva a dibujar, logrando una fluidez extrema en bibliotecas masivas."
+      ]
+    },
+    {
       "version": "v2.3.7 - Motor de Audio Definitivo y Erradicación Fuga de Memoria",
       "items": [
         "Erradicada la fuga de 31 GB de RAM provocada por la serialización Base64 paralela de payloads de 200MB en Tauri IPC.",

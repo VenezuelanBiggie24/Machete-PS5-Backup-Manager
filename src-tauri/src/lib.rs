@@ -1072,7 +1072,9 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
         (id, Arc::clone(&player.latest_request))
     };
 
+    let token_clone = token.clone();
     let wav_bytes = tauri::async_runtime::spawn_blocking(move || -> Option<Vec<u8>> {
+        let token = token_clone;
         if token.load(Ordering::SeqCst) != request_id { return None; }
         let p = Path::new(&path);
         if !p.exists() {
@@ -1145,7 +1147,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                             let format_id = &slice[i+8..i+12];
                             if format_id == b"WAVE" || format_id == b"AT9 " {
                                 let riff_size = u32::from_le_bytes(slice[i+4..i+8].try_into().unwrap_or([0;4])) as usize + 8;
-                                if riff_size > 50_000 {
+                                if riff_size > 4096 {
                                     let at9_slice = if i + riff_size <= slice.len() {
                                         &slice[i..i + riff_size]
                                     } else {
@@ -1161,6 +1163,24 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
                     
                     for at9_slice in candidates {
                         if token.load(Ordering::SeqCst) != request_id { return None; }
+                        
+                        // Check if it's already a standard PCM WAV (Compression Code 1)
+                        if at9_slice.len() > 36 && &at9_slice[0..4] == b"RIFF" && &at9_slice[8..12] == b"WAVE" {
+                            let mut is_pcm = false;
+                            for j in 12..at9_slice.len().saturating_sub(8) {
+                                if &at9_slice[j..j+4] == b"fmt " {
+                                    let audio_format = u16::from_le_bytes(at9_slice[j+8..j+10].try_into().unwrap_or([0;2]));
+                                    if audio_format == 1 {
+                                        is_pcm = true;
+                                    }
+                                    break;
+                                }
+                            }
+                            if is_pcm {
+                                return Some(at9_slice.to_vec());
+                            }
+                        }
+
                         if let Some(wav) = decode_at9_to_wav(at9_slice) {
                             return Some(wav);
                         }
@@ -1172,6 +1192,7 @@ async fn play_game_soundtrack(path: String, state: tauri::State<'_, AudioState>)
     }).await.map_err(|e| e.to_string())?;
 
     if let Some(wav) = wav_bytes {
+        if token.load(Ordering::SeqCst) != request_id { return Ok(false); }
         let player = state.inner().lock().unwrap();
         player.play_pcm_wav(&wav, 0.65)?;
         Ok(true)

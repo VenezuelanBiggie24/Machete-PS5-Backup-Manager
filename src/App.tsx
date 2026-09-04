@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01, PieChart, CheckSquare, Square, Trash2, Send, Volume2, VolumeX } from 'lucide-react';
@@ -190,7 +190,7 @@ export default function App() {
   // Multi-selection states
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
-  const toggleSelectGame = (path: string) => {
+  const toggleSelectGame = useCallback((path: string) => {
     setSelectedPaths(prev => {
       const next = new Set(prev);
       if (next.has(path)) {
@@ -200,7 +200,7 @@ export default function App() {
       }
       return next;
     });
-  };
+  }, []);
 
   const selectAllFiltered = () => {
     playSelectSound();

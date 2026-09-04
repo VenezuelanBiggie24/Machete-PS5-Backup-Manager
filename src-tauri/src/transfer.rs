@@ -140,7 +140,7 @@ async fn copy_file_chunked(
         }
         
         // Compute Hash
-        hasher.update(&buffer[..n]);
+        hasher.update_rayon(&buffer[..n]);
         
         writer.write_all(&buffer[..n]).await.map_err(|e| e.to_string())?;
         *transferred += n as u64;

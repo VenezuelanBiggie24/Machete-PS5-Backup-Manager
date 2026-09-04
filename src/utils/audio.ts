@@ -494,6 +494,7 @@ let bgmAudioElement: HTMLAudioElement | null = null;
 
 let currentBlobUrl: string | null = null;
 let isNativePlaying = false;
+let playSessionId = 0;
 
 export const isBgmPlaying = () => {
   return isNativePlaying || (bgmAudioElement !== null && !bgmAudioElement.paused);
@@ -502,11 +503,22 @@ export const isBgmPlaying = () => {
 export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
   try {
     if (isMuted) return false;
-    stopBgmTheme(); // Synchronously call stop to clear HTML5 audio states, but we ALSO need to invoke the backend stop.
+    stopBgmTheme(); 
+    
+    playSessionId++;
+    const currentSession = playSessionId;
+
     if ((window as any).__TAURI_IPC__) {
-      // Always stop the backend player first to prevent race conditions and token increment!
       await invoke('stop_game_soundtrack').catch(() => {});
+      if (playSessionId !== currentSession) return false;
+
       const nativePlayed = await invoke<boolean>('play_game_soundtrack', { path: targetPath });
+      
+      if (playSessionId !== currentSession) {
+        if (nativePlayed) invoke('stop_game_soundtrack').catch(() => {});
+        return false;
+      }
+
       if (nativePlayed) {
         isNativePlaying = true;
       }
@@ -520,7 +532,7 @@ export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
 };
 
 export const stopBgmTheme = (smooth = true) => {
-  
+  playSessionId++;
 
   // Stop native backend audio player
   if (isNativePlaying) {
