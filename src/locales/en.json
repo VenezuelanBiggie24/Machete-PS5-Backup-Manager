@@ -26,7 +26,7 @@
       "version": "v2.5.0",
       "date": "2026-09-04",
       "title": "v2.5.0: The Architect Update",
-      "changes": [
+      "items": [
         "Fixed 'no suena nada' audio bug: Homebrew PS5 containers using standard uncompressed PCM WAV for snd0.at9 are now perfectly recognized and played.",
         "Fixed React Race Condition: Rapidly switching between games no longer causes stale async audio processes to mute the soundtrack.",
         "NVMe Saturation Pipeline: The Blake3 anti-bit-rot file transfer hasher now utilizes 'rayon' for multi-core processing, unlocking maximum NVMe transfer speeds.",
