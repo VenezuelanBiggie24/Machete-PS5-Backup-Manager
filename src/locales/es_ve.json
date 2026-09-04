@@ -25,7 +25,7 @@
     {
       "version": "v2.5.0",
       "date": "2026-09-04",
-      "title": "v2.5.0: Actualización Arquitectónica ShadowMount Plus",
+      "title": "v2.5.0: Actualización Arquitectónica",
       "changes": [
         "Corregido error de 'no suena nada': Los contenedores homebrew de PS5 que usan archivos PCM WAV estándar sin compresión para snd0.at9 ahora son reconocidos y reproducidos perfectamente.",
         "Corregida Condición de Carrera en React: Cambiar rápidamente entre juegos ya no causa que los procesos asíncronos huérfanos silencien la pista de audio de fondo.",
