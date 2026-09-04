@@ -5,6 +5,7 @@ import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, External
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
+import { HoloGrid } from './components/HoloGrid';
 import { HolographicDisk } from './components/HolographicDisk';
 import { HackerConsole } from './components/HackerConsole';
 import { GameDetailsModal } from './components/GameDetailsModal';
@@ -18,7 +19,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { getVersion } from '@tauri-apps/api/app';
 
-interface FileItem {
+export interface FileItem {
   name: string;
   path: string;
   ppsa?: string;
@@ -186,6 +187,7 @@ export default function App() {
   // Inspector & Storage modal states
   const [inspectingGame, setInspectingGame] = useState<FileItem | null>(null);
   const [showStorageAnalyzer, setShowStorageAnalyzer] = useState(false);
+  const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
 
   // Multi-selection states
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
@@ -747,6 +749,15 @@ export default function App() {
       <div className="mb-6 flex justify-between items-center z-10">
         <HolographicDisk diskInfo={diskInfo} t={t} />
         {currentDir && (
+            <div className="flex gap-2">
+            <button
+              onClick={() => { playSelectSound(); setViewMode(v => v === '2D' ? '3D' : '2D'); }}
+              className={`p-3 rounded-lg transition-colors flex items-center gap-2 border ${viewMode === '3D' ? 'text-purple-400 border-purple-500/50 bg-purple-500/20' : 'text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 border-slate-700'}`}
+              title="Toggle 3D XR Voxel Dashboard"
+              onMouseEnter={playHoverSound}
+            >
+              {viewMode === '2D' ? <PieChart className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+            </button>
             <button 
               onClick={handleRefresh}
               className="p-3 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
@@ -755,6 +766,7 @@ export default function App() {
             >
               <RefreshCw className="w-5 h-5" />
             </button>
+            </div>
         )}
       </div>
 
@@ -882,6 +894,7 @@ export default function App() {
       {/* Grid of Files */}
       {currentDir && (
         <div className="relative min-h-[300px]">
+          {viewMode === '2D' ? (
           <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 transition-opacity duration-300 ${isLoading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
             <AnimatePresence>
               {filteredFiles.map((file) => {
@@ -908,6 +921,25 @@ export default function App() {
               })}
             </AnimatePresence>
           </div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className={`transition-opacity duration-300 ${isLoading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}
+            >
+              <HoloGrid 
+                files={filteredFiles} 
+                metadata={metadata} 
+                selectedPaths={selectedPaths} 
+                onToggleSelect={toggleSelectGame} 
+                onClick={(f: any) => {
+                  playPS5GameSelectSound();
+                  setInspectingGame(f);
+                }} 
+              />
+            </motion.div>
+          )}
         </div>
       )}
 
