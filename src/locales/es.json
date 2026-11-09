@@ -23,6 +23,20 @@
   "changelog_title": "Historial de Cambios",
   "changelogs": [
     {
+      "version": "v2.5.0 - Console Manager y Actualización Mayor Multiplataforma",
+      "date": "2026-11-08",
+      "title": "v2.5.0: Console Manager y Actualización Multiplataforma",
+      "items": [
+        "Console Manager para PlayStation 5: Explorador y gestor remoto de juegos por LAN, con soporte para almacenamiento interno (/data/homebrew, /data/etahen/games), discos USB y SSD M.2 (/mnt/ext*).",
+        "Daemon Nativo Machete para PS5 (v1.5.4): Demonio en C con caché persistente y atómica de tamaños, escaneo en subsegundos, recursión profunda para títulos masivos de más de 300.000 archivos y seguridad POSIX sin tocar el PFS de Sony.",
+        "Atajos de teclado de escritorio nativos: Atajos multiplataforma (Cmd/Ctrl+F para buscar, Cmd/Ctrl+A para seleccionar todo, Cmd/Ctrl+R para refrescar, Escape para cerrar modales y selecciones).",
+        "Blindaje multiplataforma: Protección estricta contra borrado accidental de unidades raíz en Windows y POSIX, normalización de rutas y eliminación de fugas en el motor de audio.",
+        "Mejora del motor de audio: Soporte de fallback PCM WAV para contenedores homebrew, integración de previews de bandas sonoras y limpieza del ciclo de vida en Web Audio.",
+        "Tubería de saturación NVMe: Hasheo Blake3 multihilo con Rayon para velocidad máxima de transferencia.",
+        "Optimizaciones React: Memoización de tarjetas y carga por lotes de metadatos para fluidez absoluta con colecciones masivas."
+      ]
+    },
+    {
       "version": "v2.3.0 - Actualización Mayor Multiplataforma, Audio ATRAC9 y Diagnóstico Exacto",
       "items": [
         "Decodificador nativo en Rust de Sony ATRAC9 y reproductor Web Audio API en streaming para música oficial (snd0.at9).",
@@ -238,5 +252,41 @@
     "Dynamic version display in About section (no more hardcoded versions).",
     "Auto-check for updates on startup.",
     "Full updater UI localized in 12 languages."
-  ]
+  ],
+  "console_manager_title": "Gestión de Consola",
+  "console_manager_subtitle": "Control y Exploración Remota de Juegos en PlayStation 5",
+  "console_ip_label": "IP de la Consola PS5",
+  "console_payload_port": "Puerto Payload",
+  "console_daemon_port": "Puerto Daemon",
+  "console_send_payload": "Enviar Payload",
+  "console_sending_payload": "Enviando Payload...",
+  "console_scan_games": "Escanear Consola",
+  "console_scanning_games": "Escaneando...",
+  "console_status_connected": "Conectado",
+  "console_status_disconnected": "Desconectado",
+  "console_status_scanning": "Escaneando Consola...",
+  "console_payload_success": "Payload enviado con éxito a la PlayStation 5. Comprueba la notificación en la pantalla de tu consola.",
+  "console_payload_error": "Error al enviar el payload a la PlayStation 5: {{error}}",
+  "console_scan_error": "Error al escanear los juegos en la consola: {{error}}",
+  "console_empty_title": "Sin juegos escaneados",
+  "console_empty_desc": "Conéctate a la IP de tu PS5, envía el payload si el daemon no está activo, y pulsa 'Escanear Consola' para listar todos los títulos instalados.",
+  "console_delete_confirm_title": "Eliminar Juego de la Consola",
+  "console_delete_confirm_msg": "¿Deseas eliminar permanentemente este juego de la PlayStation 5 en la ruta: {{path}}? Esta acción no se puede deshacer.",
+  "console_delete_warning": "Esta acción borrará directamente los archivos de la unidad de almacenamiento de tu consola.",
+  "console_delete_success": "Juego eliminado permanentemente de la PlayStation 5.",
+  "console_delete_error": "Error al eliminar el juego de la consola: {{error}}",
+  "console_deleting": "Eliminando de la consola...",
+  "console_search_placeholder": "Filtrar por título, PPSA o ubicación...",
+  "console_sort_name": "Nombre (A-Z)",
+  "console_sort_size": "Tamaño (Mayor a Menor)",
+  "console_sort_path": "Ubicación",
+  "console_stats_badge": "{{count}} títulos • {{size}}",
+  "console_path_badge": "Ruta: {{path}}",
+  "scan_network_btn": "Buscar en Red",
+  "scanning_network": "Buscando...",
+  "scan_network_tooltip": "Escanear la red local para detectar la PlayStation 5 automáticamente",
+  "ps5_detected": "PlayStation 5 detectada en {{ip}} ({{status}})",
+  "ps5_not_found": "No se detectó ninguna PlayStation 5 en la red local. Verifica que esté encendida en la misma red Wi-Fi o Ethernet.",
+  "settings_audio_source": "Fuente de Audio",
+  "settings_audio_source_desc": "Selecciona el proveedor de música en línea."
 }

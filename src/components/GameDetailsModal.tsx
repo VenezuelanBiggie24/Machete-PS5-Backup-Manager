@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FolderOpen, ExternalLink, Copy, Check, HardDrive, Cpu, ShieldCheck, Tag, FileCode, Trash2, Edit3, Image as ImageIcon, Volume2, VolumeX } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
@@ -25,10 +25,17 @@ interface GameDetailsModalProps {
 
 export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover, onDelete, t }: GameDetailsModalProps) {
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [hasAudio, setHasAudio] = useState(false);
   const [computedSize, setComputedSize] = useState<number | null>(game?.size_bytes || null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (game?.size_bytes && game.size_bytes > 0) {
@@ -47,7 +54,8 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
 
     // Trigger native soundtrack playback immediately
     if (game?.path) {
-      playBgmTheme(game.path).then((success) => {
+      const titleCandidate = meta?.title || (game?.name ? game.name.replace(/\.[^/.]+$/, '') : '');
+      playBgmTheme(titleCandidate).then((success) => {
         if (!active) {
           if (success) stopBgmTheme();
           return;
@@ -76,7 +84,8 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
       stopBgmTheme();
       setIsPlayingAudio(false);
     } else if (game?.path) {
-      playBgmTheme(game.path).then(success => {
+      const titleCandidate = meta?.title || (game?.name ? game.name.replace(/\.[^/.]+$/, '') : '');
+      playBgmTheme(titleCandidate).then(success => {
         if (success) setIsPlayingAudio(true);
       });
     }
@@ -89,7 +98,8 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
       navigator.clipboard.writeText(game.ppsa);
       setCopied(true);
       playSelectSound();
-      setTimeout(() => setCopied(false), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -272,7 +282,7 @@ export function GameDetailsModal({ game, meta, onClose, onRename, onChangeCover,
                   <div>
                     <div className="text-[10px] font-mono text-slate-400 uppercase">{t("spec_format")}</div>
                     <div className="text-xs font-mono font-bold text-white uppercase">
-                      {game.is_dir ? t("format_folder") : game.name.split('.').pop() || t("format_container")}
+                      {game?.is_dir ? t("format_folder") : (game?.name ? game.name.split('.').pop() : t("format_container"))}
                     </div>
                   </div>
                 </div>

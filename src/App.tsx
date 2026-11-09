@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01, PieChart, CheckSquare, Square, Trash2, Send, Volume2, VolumeX } from 'lucide-react';
+import { FolderSearch, Settings, Globe, Info, DownloadCloud, RefreshCw, ExternalLink, Activity, ArrowUpCircle, X, Search, ArrowDownAZ, ArrowDown01, Box, LayoutGrid, PieChart, CheckSquare, Square, Trash2, Send, Volume2, VolumeX, Gamepad2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GameCard } from './components/GameCard';
 import { HoloGrid } from './components/HoloGrid';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { HolographicDisk } from './components/HolographicDisk';
 import { HackerConsole } from './components/HackerConsole';
 import { GameDetailsModal } from './components/GameDetailsModal';
 import { StorageAnalyzerModal } from './components/StorageAnalyzerModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ConsoleManagerModal } from './components/ConsoleManagerModal';
 import { playScanSound, playSuccessSound, playSelectSound, playCancelSound, playMacheteSound, playHoverSound, playPS5GameSelectSound, isAudioMuted, setAudioMuted } from './utils/audio';
 import i18n from './i18n';
 import logoUrl from './assets/logo.jpg';
@@ -33,6 +35,7 @@ export interface FileItem {
   content_id?: string;
   category?: string;
   has_local_icon?: boolean;
+  storage_label?: string;
 }
 
 interface MetadataInfo {
@@ -159,6 +162,7 @@ export default function App() {
     return localStorage.getItem('machete_visual_effects') !== 'false';
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [showConsoleManager, setShowConsoleManager] = useState(false);
 
   const handleToggleVisualEffects = (val: boolean) => {
     setVisualEffects(val);
@@ -191,6 +195,7 @@ export default function App() {
 
   // Multi-selection states
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const scanSessionIdRef = useRef(0);
 
   const toggleSelectGame = useCallback((path: string) => {
     setSelectedPaths(prev => {
@@ -312,7 +317,9 @@ export default function App() {
         }
         const metaA = a.ppsa ? metadata[a.ppsa]?.title : a.name;
         const metaB = b.ppsa ? metadata[b.ppsa]?.title : b.name;
-        return (metaA || a.name).localeCompare(metaB || b.name);
+        const titleA = metaA || a.name || '';
+        const titleB = metaB || b.name || '';
+        return titleA.localeCompare(titleB);
       });
   }, [files, metadata, searchTerm, regionFilter, sortBy]);
 
@@ -333,6 +340,48 @@ export default function App() {
     };
     autoCheck();
   }, []);
+
+  // Cross-platform desktop keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isModifier = e.metaKey || e.ctrlKey;
+      const activeTag = (document.activeElement?.tagName || '').toUpperCase();
+      const isInputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+
+      // 1. Search Focus (Cmd+F / Ctrl+F)
+      if (isModifier && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+        searchInput?.focus();
+      }
+
+      // 2. Select All Filtered (Cmd+A / Ctrl+A outside inputs)
+      if (isModifier && e.key.toLowerCase() === 'a' && !isInputFocused) {
+        e.preventDefault();
+        selectAllFiltered();
+      }
+
+      // 3. Refresh (Cmd+R / Ctrl+R / F5)
+      if ((isModifier && e.key.toLowerCase() === 'r') || e.key === 'F5') {
+        e.preventDefault();
+        handleRefresh();
+      }
+
+      // 4. Escape Handling Cascade
+      if (e.key === 'Escape') {
+        if (showAbout) setShowAbout(false);
+        else if (showSettings) setShowSettings(false);
+        else if (showStorageAnalyzer) setShowStorageAnalyzer(false);
+        else if (showConsoleManager) setShowConsoleManager(false);
+        else if (inspectingGame) setInspectingGame(null);
+        else if (selectedPaths.size > 0) clearSelection();
+        else if (searchTerm) setSearchTerm('');
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showAbout, showSettings, showStorageAnalyzer, showConsoleManager, inspectingGame, selectedPaths, searchTerm, filteredFiles]);
 
   const startTransfer = async (payload: string[]) => {
     if (!currentDirRef.current) return;
@@ -412,34 +461,50 @@ export default function App() {
         .then(disk => setDiskInfo(disk))
         .catch(e => console.error("Could not get disk space", e));
 
-      // 3. Background: Asynchronously stream high-resolution vertical covers from CDN / SerialStation
+      // 3. Background: Asynchronously stream high-resolution vertical covers from CDN in bounded chunks
       const ppsas = result.filter(f => f.ppsa).map(f => f.ppsa!);
       const uniquePpsas = [...new Set(ppsas)];
       
-      uniquePpsas.forEach(async (ppsa) => {
-        try {
-          const meta = await invoke<MetadataInfo>('fetch_metadata_rs', { ppsa });
-          if (meta) {
-            setMetadata(prev => ({
-              ...prev,
-              [ppsa]: {
-                ...meta,
-                cover: meta.cover || prev[ppsa]?.cover || initialMeta[ppsa]?.cover,
+      (async () => {
+        const CHUNK_SIZE = 10;
+        for (let i = 0; i < uniquePpsas.length; i += CHUNK_SIZE) {
+          const chunk = uniquePpsas.slice(i, i + CHUNK_SIZE);
+          const results = await Promise.all(
+            chunk.map(async (ppsa) => {
+              try {
+                const meta = await invoke<MetadataInfo>('fetch_metadata_rs', { ppsa });
+                return { ppsa, meta };
+              } catch {
+                return null;
               }
-            }));
-          }
-        } catch (e) {
-          // Keep offline title / local icon on network fallback
+            })
+          );
+          setMetadata(prev => {
+            const next = { ...prev };
+            for (const r of results) {
+              if (r?.meta) {
+                next[r.ppsa] = {
+                  ...r.meta,
+                  cover: r.meta.cover || prev[r.ppsa]?.cover || initialMeta[r.ppsa]?.cover,
+                };
+              }
+            }
+            return next;
+          });
         }
-      });
+      })();
 
-      // 4. Background: Asynchronously calculate folder sizes without blocking UI or thrashing disk
+      // 4. Background: Asynchronously calculate folder sizes with cancellation on directory change
+      scanSessionIdRef.current++;
+      const currentScanId = scanSessionIdRef.current;
       const folderItems = result.filter(f => f.is_dir && (!f.size_bytes || f.size_bytes === 0));
       if (folderItems.length > 0) {
         (async () => {
           for (const folder of folderItems) {
+            if (scanSessionIdRef.current !== currentScanId) break;
             try {
               const size = await invoke<number>('get_folder_size', { path: folder.path });
+              if (scanSessionIdRef.current !== currentScanId) break;
               if (size > 0) {
                 setFiles(prev => prev.map(item => item.path === folder.path ? { ...item, size_bytes: size } : item));
               }
@@ -723,6 +788,16 @@ export default function App() {
             {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
 
+          {/* Console Manager Button */}
+          <button 
+            onClick={() => { playSelectSound(); setShowConsoleManager(true); }}
+            className="bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold p-2 rounded-lg transition-colors border border-slate-700 hover:border-cyan-500/50"
+            title={t("console_manager_title")}
+            onMouseEnter={playHoverSound}
+          >
+            <Gamepad2 className="w-5 h-5" />
+          </button>
+
           {/* Settings Modal Button */}
           <button 
             onClick={() => { playSelectSound(); setShowSettings(true); }}
@@ -756,7 +831,7 @@ export default function App() {
               title="Toggle 3D XR Voxel Dashboard"
               onMouseEnter={playHoverSound}
             >
-              {viewMode === '2D' ? <PieChart className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+              {viewMode === '2D' ? <Box className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
             </button>
             <button 
               onClick={handleRefresh}
@@ -776,7 +851,7 @@ export default function App() {
         <div className="px-6 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30 backdrop-blur-md sticky top-0 z-20">
           <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
             <Settings className="w-4 h-4 text-cyan-500" />
-            {currentDir ? currentDir.split(/[/\\]/).pop() || currentDir : t("drag_drop")}
+            {currentDir ? currentDir.replace(/[/\\]+$/, '').split(/[/\\]/).pop() || currentDir : t("drag_drop")}
           </h2>
           <span className="text-xs text-slate-500 font-mono bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
             {filteredFiles.length} / {files.length} TITLES • {formatBytes(files.reduce((acc, f) => acc + (f.size_bytes || 0), 0))}
@@ -928,7 +1003,7 @@ export default function App() {
               transition={{ duration: 0.5 }}
               className={`transition-opacity duration-300 ${isLoading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}
             >
-              <HoloGrid 
+              <ErrorBoundary><HoloGrid 
                 files={filteredFiles} 
                 metadata={metadata} 
                 selectedPaths={selectedPaths} 
@@ -938,6 +1013,7 @@ export default function App() {
                   setInspectingGame(f);
                 }} 
               />
+              </ErrorBoundary>
             </motion.div>
           )}
         </div>
@@ -1027,6 +1103,14 @@ export default function App() {
         t={t}
       />
 
+      {/* Console Manager Modal */}
+      <ConsoleManagerModal
+        isOpen={showConsoleManager}
+        onClose={() => setShowConsoleManager(false)}
+        visualEffects={visualEffects}
+        t={t}
+      />
+
       {/* Drop Zone */}
       {currentDir && (
         <div onClick={handleDropzoneClick} className="mt-8 border-2 border-dashed border-cyan-500/50 rounded-xl p-12 flex flex-col items-center justify-center text-cyan-400/70 hover:bg-cyan-500/5 hover:border-cyan-400 transition-all cursor-pointer neon-border">
@@ -1083,7 +1167,9 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="glass-panel p-8 rounded-2xl max-w-md w-full border border-cyan-500/50 shadow-[0_0_30px_rgba(0,240,255,0.2)] relative"
           >
-            <button onClick={() => setShowAbout(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <button onClick={() => setShowAbout(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
             <div className="text-center mb-6">
               <div className="w-24 h-24 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg neon-border p-1 overflow-hidden">
                 <img src={logoUrl} alt="Machete Logo" className="w-full h-full object-cover rounded-xl" />
@@ -1183,7 +1269,7 @@ export default function App() {
                     </span>
                   </h4>
                   <p className="text-[11px] text-slate-400 font-mono">
-                    v{appVersion} → v{updateAvailable.version}
+                    v{appVersion} -&gt; v{updateAvailable.version}
                   </p>
                 </div>
               </div>

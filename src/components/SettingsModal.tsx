@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Volume2, VolumeX, Globe, ArrowUpCircle, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { playCancelSound, playHoverSound, playSelectSound } from '../utils/audio';
+import { useState } from 'react';
 
 const LANGUAGES = [
   { code: 'en', label: 'English (Default)' },
@@ -44,12 +45,18 @@ export function SettingsModal({
   t,
 }: SettingsModalProps) {
   const { i18n } = useTranslation();
+  const [audioSource, setAudioSource] = useState(localStorage.getItem('machete_audio_source') || 'deezer');
 
   if (!isOpen) return null;
 
   const handleLanguageChange = (code: string) => {
     i18n.changeLanguage(code);
     localStorage.setItem('machete_lang', code);
+  };
+
+  const handleAudioSourceChange = (source: string) => {
+    setAudioSource(source);
+    localStorage.setItem('machete_audio_source', source);
   };
 
   return (
@@ -186,7 +193,37 @@ export function SettingsModal({
               </select>
             </div>
 
-            {/* 4. Quick Actions in Settings */}
+            {/* 4. Audio Source */}
+            <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mt-0.5">
+                  <Volume2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white font-mono">
+                    {t("settings_audio_source") || "Audio Source"}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {t("settings_audio_source_desc") || "Soundtrack provider"}
+                  </p>
+                </div>
+              </div>
+
+              <select
+                value={audioSource}
+                onChange={(e) => {
+                  playSelectSound();
+                  handleAudioSourceChange(e.target.value);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-950 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold focus:outline-none focus:border-cyan-400 cursor-pointer shadow-sm max-w-[180px]"
+              >
+                <option value="deezer" className="bg-slate-900 text-white font-sans">Deezer (API)</option>
+                <option value="archive" className="bg-slate-900 text-white font-sans">Archive.org (Classic/Stable)</option>
+                <option value="youtube" className="bg-slate-900 text-white font-sans">YouTube (rusty_ytdl)</option>
+              </select>
+            </div>
+
+            {/* 5. Quick Actions in Settings */}
             <div className="pt-2 flex flex-col gap-2.5">
               <button
                 onClick={() => {

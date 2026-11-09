@@ -53,6 +53,9 @@ export const unlockAudio = () => {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(ctx.destination);
+    source.onended = () => {
+      try { source.disconnect(); } catch (_) {}
+    };
     source.start(0);
   } catch (_) {}
 };
@@ -60,6 +63,14 @@ export const unlockAudio = () => {
 if (typeof window !== 'undefined') {
   const handleUserInteraction = () => {
     unlockAudio();
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'running') {
+      window.removeEventListener('pointerdown', handleUserInteraction);
+      window.removeEventListener('click', handleUserInteraction);
+      window.removeEventListener('keydown', handleUserInteraction);
+      window.removeEventListener('touchstart', handleUserInteraction);
+      window.removeEventListener('focus', handleUserInteraction);
+    }
   };
 
   window.addEventListener('pointerdown', handleUserInteraction, { passive: true });
@@ -502,17 +513,20 @@ export const isBgmPlaying = () => {
 
 export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
   try {
-    if (isMuted) return false;
+    console.log('isMuted is:', isMuted); if (isMuted) return false;
     stopBgmTheme(); 
     
     playSessionId++;
     const currentSession = playSessionId;
 
-    if ((window as any).__TAURI_IPC__) {
+    if (true) {
       await invoke('stop_game_soundtrack').catch(() => {});
       if (playSessionId !== currentSession) return false;
 
-      const nativePlayed = await invoke<boolean>('play_game_soundtrack', { path: targetPath });
+      console.log('CALLING PLAY INTERNET SOUNDTRACK WITH TITLE:', targetPath);
+      const audioSource = localStorage.getItem('machete_audio_source') || 'deezer';
+      const nativePlayed = await invoke<boolean>('play_internet_soundtrack', { title: targetPath, source: audioSource }).catch(e => { console.error('IPC ERROR:', e); return false; });
+      console.log('NATIVE PLAYED RESULT:', nativePlayed);
       
       if (playSessionId !== currentSession) {
         if (nativePlayed) invoke('stop_game_soundtrack').catch(() => {});
@@ -531,8 +545,15 @@ export const playBgmTheme = async (targetPath: string): Promise<boolean> => {
   }
 };
 
+let activeFadeOutTimer: ReturnType<typeof setInterval> | null = null;
+
 export const stopBgmTheme = (smooth = true) => {
   playSessionId++;
+
+  if (activeFadeOutTimer) {
+    clearInterval(activeFadeOutTimer);
+    activeFadeOutTimer = null;
+  }
 
   // Stop native backend audio player
   if (isNativePlaying) {
@@ -546,11 +567,14 @@ export const stopBgmTheme = (smooth = true) => {
     bgmAudioElement = null;
 
     if (smooth && audio.volume > 0.1) {
-      const fadeOutTimer = setInterval(() => {
+      activeFadeOutTimer = setInterval(() => {
         if (audio.volume > 0.1) {
           audio.volume = Math.max(0, audio.volume - 0.1);
         } else {
-          clearInterval(fadeOutTimer);
+          if (activeFadeOutTimer) {
+            clearInterval(activeFadeOutTimer);
+            activeFadeOutTimer = null;
+          }
           audio.pause();
           audio.src = '';
         }

@@ -100,7 +100,9 @@ export function StorageAnalyzerModal({ files, metadata, diskInfo, onClose, onSel
               {/* Multi-segment Colored Storage Bar */}
               <div className="w-full h-4 rounded-full bg-slate-950 overflow-hidden flex border border-slate-800 shadow-inner">
                 {sortedGames.slice(0, 10).map((g, idx) => {
-                  const pct = totalGamesSize > 0 ? ((g.size_bytes || 0) / diskTotal) * 100 : 0;
+                  const pct = totalGamesSize > 0 && diskTotal > 0 
+                    ? Math.min(100, Math.max(0, ((g.size_bytes || 0) / diskTotal) * 100)) 
+                    : 0;
                   if (pct <= 0) return null;
                   return (
                     <div

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
-import { Trash2, Edit2, Image as ImageIcon, Check, Info, ShieldCheck } from 'lucide-react';
+import { Trash2, Edit2, Image as ImageIcon, Check, Info, ShieldCheck, HardDrive } from 'lucide-react';
 import { playHoverSound, playSelectSound, playPS5GameSelectSound } from '../utils/audio';
 
 function formatBytes(bytes: number, decimals = 2) {
@@ -25,7 +25,7 @@ interface GameCardProps {
   onChangeCover: (ppsa: string) => void;
 }
 
-export function GameCard({
+function GameCardComponent({
   file,
   meta,
   t,
@@ -233,6 +233,14 @@ export function GameCard({
                 {meta?.title || file.name}
               </h3>
             </div>
+            {file.storage_label && (
+              <div className="my-1 flex items-center overflow-hidden" title={file.storage_label}>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-mono bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 truncate w-full shadow-sm">
+                  <HardDrive className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
+                  <span className="truncate">{file.storage_label}</span>
+                </span>
+              </div>
+            )}
             <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1">
               <span>{file.size_bytes ? formatBytes(file.size_bytes) : (file.is_dir ? t("format_folder") : t("format_container"))}</span>
               <span>{file.is_dir ? t("format_folder") : t("format_container")}</span>
@@ -261,3 +269,5 @@ export function GameCard({
     </motion.div>
   );
 }
+
+export const GameCard = React.memo(GameCardComponent);

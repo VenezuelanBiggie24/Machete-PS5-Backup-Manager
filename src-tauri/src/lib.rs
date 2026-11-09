@@ -1,3 +1,6 @@
+pub mod console_manager;
+pub mod internet_audio;
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -945,12 +948,13 @@ fn find_game_audio_file(dir: &Path, depth: u32) -> Option<(PathBuf, String)> {
 }
 
 #[tauri::command]
-async fn get_game_audio(path: String) -> Result<Option<String>, String> { Ok(None) }
+async fn get_game_audio(_path: String) -> Result<Option<String>, String> { Ok(None) }
 
 #[derive(Clone)]
 pub struct NativeAudioPlayer {
     current_process: Arc<Mutex<Option<std::process::Child>>>,
-    latest_request: Arc<AtomicUsize>,
+    pub latest_request: Arc<AtomicUsize>,
+    current_temp_file: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl NativeAudioPlayer {
@@ -958,17 +962,24 @@ impl NativeAudioPlayer {
         Self {
             current_process: Arc::new(Mutex::new(None)),
             latest_request: Arc::new(AtomicUsize::new(0)),
+            current_temp_file: Arc::new(Mutex::new(None)),
         }
     }
 
-    fn play_pcm_wav(&self, wav_data: &[u8], volume: f32) -> Result<(), String> {
+    pub fn play_buffer(&self, data: &[u8], format: &str, volume: f32) -> Result<(), String> {
         self.stop();
 
         use std::time::{SystemTime, UNIX_EPOCH};
-        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-        let temp_file = std::env::temp_dir().join(format!("machete_preview_audio_{}.wav", ts));
+        let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        let ext = if format.is_empty() { "wav" } else { format };
+        let temp_file = std::env::temp_dir().join(format!("machete_preview_audio_{}.{}", ts, ext));
         
-        fs::write(&temp_file, wav_data).map_err(|e| e.to_string())?;
+        fs::write(&temp_file, data).map_err(|e| e.to_string())?;
+
+        {
+            let mut tf = self.current_temp_file.lock().unwrap();
+            *tf = Some(temp_file.clone());
+        }
 
         let vol_str = format!("{:.2}", volume.clamp(0.0, 1.0));
 
@@ -978,7 +989,7 @@ impl NativeAudioPlayer {
             c.arg("-c").arg(format!(
                 "while true; do /usr/bin/afplay -v {} '{}' 2>/dev/null; sleep 0.05; done",
                 vol_str,
-                temp_file.to_string_lossy().replace("'", "'\\''")
+                temp_file.to_string_lossy().replace('\'', "'\\''")
             ));
             c
         };
@@ -987,10 +998,11 @@ impl NativeAudioPlayer {
         let mut cmd = {
             let mut c = std::process::Command::new("powershell");
             let script = format!(
-                "Add-Type -AssemblyName System.Media; $player = New-Object System.Media.SoundPlayer('{}'); $player.PlayLooping()",
-                temp_file.to_string_lossy().replace("'", "''")
+                "Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open([System.Uri]('{}')); $player.Volume = {}; $player.Play(); while($true){{ Start-Sleep -Milliseconds 500 }}",
+                temp_file.to_string_lossy().replace('\'', "''"),
+                vol_str
             );
-            c.arg("-NoProfile").arg("-NonInteractive").arg("-Command").arg(script);
+            c.arg("-NoProfile").arg("-NonInteractive").arg("-WindowStyle").arg("Hidden").arg("-Command").arg(script);
             c
         };
 
@@ -999,9 +1011,9 @@ impl NativeAudioPlayer {
             let mut c = std::process::Command::new("sh");
             c.arg("-c").arg(format!(
                 "while true; do (paplay '{}' || pw-play '{}' || aplay '{}') 2>/dev/null; sleep 0.05; done",
-                temp_file.to_string_lossy().replace("'", "'\\''"),
-                temp_file.to_string_lossy().replace("'", "'\\''"),
-                temp_file.to_string_lossy().replace("'", "'\\''")
+                temp_file.to_string_lossy().replace('\'', "'\\''"),
+                temp_file.to_string_lossy().replace('\'', "'\\''"),
+                temp_file.to_string_lossy().replace('\'', "'\\''")
             ));
             c
         };
@@ -1014,7 +1026,11 @@ impl NativeAudioPlayer {
         Ok(())
     }
 
-    fn stop(&self) {
+    fn play_pcm_wav(&self, wav_data: &[u8], volume: f32) -> Result<(), String> {
+        self.play_buffer(wav_data, "wav", volume)
+    }
+
+    pub fn stop(&self) {
         let mut current = self.current_process.lock().unwrap();
         if let Some(mut child) = current.take() {
             let _ = child.kill();
@@ -1023,6 +1039,10 @@ impl NativeAudioPlayer {
         #[cfg(target_os = "macos")]
         {
             let _ = std::process::Command::new("killall").arg("afplay").output();
+        }
+        let mut tf = self.current_temp_file.lock().unwrap();
+        if let Some(path) = tf.take() {
+            let _ = fs::remove_file(path);
         }
     }
 }
@@ -1339,7 +1359,7 @@ fn inspect_ps5_item(path_buf: &Path) -> Ps5InspectResult {
             "ffpkg" | "exfat" | "ffpfs" | "ffpfsc" | "pkg" | "pfs" | "ufs" | "img" | "bin" | "dump" | "raw" | "iso" | "dat" | "vhd" | "vhdx" | "dsk" | "bak" | "part" | ""
         );
 
-        if is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false) {
+        if (is_known_container || path_buf.metadata().map(|m| m.len() >= 512).unwrap_or(false)) && path_buf.metadata().map(|m| m.len() > 0).unwrap_or(false) {
             if let Ok(file) = fs::File::open(path_buf) {
                 let mut buffer = Vec::new();
                 let mut reader = file.take(512 * 1024); // Instant 512KB header probe
@@ -1711,8 +1731,9 @@ async fn delete_file(path: String) -> Result<(), String> {
             return Ok(());
         }
 
-        let clean_path = path_buf.to_string_lossy().replace('\\', "/");
-        if clean_path == "/" || clean_path == "c:/" || clean_path == "d:/" || clean_path == "e:/" {
+        let clean_path = path_buf.to_string_lossy().replace('\\', "/").to_lowercase();
+        if clean_path == "/" || clean_path == "c:/" || clean_path == "d:/" || clean_path == "e:/"
+            || clean_path.ends_with(":/") || clean_path.len() <= 3 {
             return Err("Protection: Refusing to delete root drive directory".to_string());
         }
 
@@ -1943,7 +1964,13 @@ pub fn run() {
             get_game_audio,
             play_game_soundtrack,
             stop_game_soundtrack,
-            set_game_soundtrack_volume
+            set_game_soundtrack_volume,
+            internet_audio::play_internet_soundtrack,
+            console_manager::send_console_payload,
+            console_manager::check_console_status,
+            console_manager::scan_console_games,
+            console_manager::delete_console_game,
+            console_manager::discover_ps5_consoles
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
